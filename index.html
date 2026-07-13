@@ -1,0 +1,733 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tickets · Issue Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fas fa-ticket-alt"></i></div>
+      <span class="brand-name">HelpDesk</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item"><i class="fas fa-gauge"></i><span>Dashboard</span></a>
+      <a href="#" class="nav-item active"><i class="fas fa-ticket"></i><span>Tickets</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-layer-group"></i><span>Applications</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-user-tie"></i><span>SPOC Management</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-building"></i><span>Departments</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reports</span></a>
+      <a href="#" class="nav-item"><i class="fas fa-gear"></i><span>Settings</span></a>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- TOP NAV -->
+    <header class="topnav">
+      <div class="topnav-left">
+        <i class="fas fa-search topnav-search-icon"></i>
+        <input type="text" class="topnav-search" placeholder="Search anything...">
+      </div>
+      <div class="topnav-right">
+        <button class="icon-btn"><i class="fas fa-bell"></i><span class="notif-dot"></span></button>
+        <div class="user-dropdown" id="userDropdown">
+          <div class="user-avatar">JD</div>
+          <span class="user-name">John Doe</span>
+          <i class="fas fa-chevron-down user-chevron"></i>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content">
+      <div class="page-heading">
+        <h1>Tickets</h1>
+        <button class="btn btn-primary"><i class="fas fa-plus"></i> New Ticket</button>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card">
+          <div class="kpi-icon"><i class="fas fa-ticket"></i></div>
+          <div class="kpi-body">
+            <div class="kpi-count" id="kpiTotal">0</div>
+            <div class="kpi-label">Total</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
+          <div class="kpi-body">
+            <div class="kpi-count" id="kpiOpen">0</div>
+            <div class="kpi-label">Open</div>
+            <div class="kpi-sub">(In Progress + Waiting + Resolved)</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon"><i class="fas fa-spinner"></i></div>
+          <div class="kpi-body">
+            <div class="kpi-count" id="kpiInProgress">0</div>
+            <div class="kpi-label">In Progress</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon"><i class="fas fa-clock"></i></div>
+          <div class="kpi-body">
+            <div class="kpi-count" id="kpiWaiting">0</div>
+            <div class="kpi-label">Waiting</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="kpi-body">
+            <div class="kpi-count" id="kpiClosed">0</div>
+            <div class="kpi-label">Closed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATUS TABS -->
+      <div class="tabs" id="tabsContainer">
+        <button class="tab active" data-tab="all">All <span class="tab-badge" id="badgeAll">0</span></button>
+        <button class="tab" data-tab="open">Open <span class="tab-badge" id="badgeOpen">0</span></button>
+        <button class="tab" data-tab="in_progress">In Progress <span class="tab-badge" id="badgeIp">0</span></button>
+        <button class="tab" data-tab="waiting">Waiting <span class="tab-badge" id="badgeWaiting">0</span></button>
+        <button class="tab" data-tab="closed">Closed <span class="tab-badge" id="badgeClosed">0</span></button>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filters">
+        <div class="filter-item search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Search tickets by ID, subject, or person...">
+        </div>
+        <div class="filter-item">
+          <label>Status</label>
+          <select id="filterStatus">
+            <option value="all">All Statuses</option>
+            <option value="open">Open</option>
+            <option value="in_progress">In Progress</option>
+            <option value="waiting">Waiting</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>Application</label>
+          <select id="filterApp">
+            <option value="all">All Applications</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>From</label>
+          <input type="date" id="filterFrom">
+        </div>
+        <div class="filter-item">
+          <label>To</label>
+          <input type="date" id="filterTo">
+        </div>
+        <div class="filter-export">
+          <button class="btn btn-outline" id="exportBtn"><i class="fas fa-download"></i> Export</button>
+        </div>
+      </div>
+
+      <!-- BULK ACTIONS -->
+      <div class="bulk-bar" id="bulkBar">
+        <span class="bulk-count" id="bulkCount">0 selected</span>
+        <div class="bulk-actions">
+          <button class="btn btn-outline btn-sm" id="bulkStatus"><i class="fas fa-tag"></i> Change Status</button>
+          <button class="btn btn-outline btn-sm" id="bulkAssign"><i class="fas fa-user-plus"></i> Assign SPOC</button>
+          <button class="btn btn-outline btn-sm" id="bulkExport"><i class="fas fa-download"></i> Export</button>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-wrap">
+        <table class="ticket-table" id="ticketTable">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="selectAll"></th>
+              <th class="col-id">Ticket ID</th>
+              <th class="col-app">Application</th>
+              <th class="col-user">Raised By</th>
+              <th class="col-subject">Subject</th>
+              <th class="col-desc">Description</th>
+              <th class="col-status">Status</th>
+              <th class="col-sla">SLA</th>
+              <th class="col-updated">Updated</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Dropdown menus -->
+<div class="dropdown-menu" id="userMenu">
+  <a href="#">Profile</a>
+  <a href="#">Settings</a>
+  <hr>
+  <a href="#">Sign out</a>
+</div>
+<div class="dropdown-menu" id="actionMenu"></div>
+<div class="dropdown-menu" id="bulkStatusMenu">
+  <a href="#" data-status="in_progress">In Progress</a>
+  <a href="#" data-status="waiting">Waiting</a>
+  <a href="#" data-status="resolved">Resolved</a>
+  <a href="#" data-status="closed">Closed</a>
+</div>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:Inter,sans-serif;color:#111827;background:#F9FAFB;line-height:1.5}
+
+:root{
+--primary:#2563EB;--primary-hover:#1D4ED8;--primary-light:#EFF6FF;
+--orange:#F59E0B;--orange-light:#FEF3C7;--orange-dark:#92400E;
+--purple:#8B5CF6;--purple-light:#EDE9FE;--purple-dark:#5B21B6;
+--green:#10B981;--green-light:#D1FAE5;--green-dark:#065F46;
+--gray:#6B7280;--gray-light:#F3F4F6;--gray-dark:#374151;
+--bg:#F9FAFB;--sidebar-bg:#F3F4F6;
+--border:#E5E7EB;--text:#111827;--text-secondary:#6B7280;--text-muted:#9CA3AF;
+--shadow-sm:0 1px 2px rgba(0,0,0,0.04);
+--shadow:0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+--shadow-md:0 4px 12px rgba(0,0,0,0.07);
+--radius:8px;--radius-md:12px;--radius-lg:16px
+}
+
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:250px;background:#F3F4F6;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;padding:24px 16px}
+.sidebar-brand{display:flex;align-items:center;gap:12px;padding:0 12px 28px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.brand-icon{width:36px;height:36px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px}
+.brand-name{font-weight:700;font-size:1.2rem;color:var(--text);letter-spacing:-.02em}
+.sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;color:var(--text-secondary);text-decoration:none;font-weight:500;font-size:.95rem;transition:all .15s ease}
+.nav-item i{width:20px;text-align:center;font-size:1rem;color:var(--text-muted)}
+.nav-item:hover{background:#fff;color:var(--text)}
+.nav-item:hover i{color:var(--text-secondary)}
+.nav-item.active{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
+.nav-item.active i{color:var(--primary)}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topnav{height:64px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px;flex-shrink:0}
+.topnav-left{display:flex;align-items:center;gap:12px;flex:1;max-width:420px}
+.topnav-search-icon{color:var(--text-muted);font-size:.95rem}
+.topnav-search{border:none;outline:none;background:transparent;font-family:Inter,sans-serif;font-size:.95rem;color:var(--text);width:100%}
+.topnav-search::placeholder{color:var(--text-muted)}
+.topnav-right{display:flex;align-items:center;gap:20px}
+.icon-btn{position:relative;width:40px;height:40px;border-radius:50%;border:none;background:transparent;color:var(--text-secondary);font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s ease}
+.icon-btn:hover{background:var(--gray-light)}
+.notif-dot{position:absolute;top:9px;right:11px;width:7px;height:7px;border-radius:50%;background:var(--primary);border:2px solid #fff}
+.user-dropdown{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 12px 6px 6px;border-radius:8px;transition:background .15s ease}
+.user-dropdown:hover{background:var(--gray-light)}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.78rem}
+.user-name{font-weight:500;font-size:.92rem;color:var(--text)}
+.user-chevron{font-size:.72rem;color:var(--text-muted)}
+
+.content{flex:1;overflow-y:auto;padding:28px 32px 40px}
+.page-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+.page-heading h1{font-size:1.65rem;font-weight:700;letter-spacing:-.02em}
+
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px}
+.kpi-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px 24px;display:flex;align-items:flex-start;gap:18px;box-shadow:var(--shadow-sm);transition:box-shadow .2s ease}
+.kpi-card:hover{box-shadow:var(--shadow-md)}
+.kpi-icon{width:44px;height:44px;border-radius:8px;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.kpi-body{flex:1;min-width:0}
+.kpi-count{font-size:1.85rem;font-weight:700;line-height:1.2;letter-spacing:-.02em;color:var(--text)}
+.kpi-label{font-size:.85rem;font-weight:500;color:var(--text-secondary);margin-top:4px}
+.kpi-sub{font-size:.72rem;color:var(--text-muted);margin-top:6px;line-height:1.3}
+
+.tabs{display:flex;gap:0;margin-bottom:0;border-bottom:1px solid var(--border)}
+.tab{position:relative;padding:12px 20px;background:transparent;border:none;font-family:Inter,sans-serif;font-size:.9rem;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:color .15s ease;display:flex;align-items:center;gap:8px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab-badge{background:var(--gray-light);color:var(--text-secondary);font-size:.72rem;font-weight:600;padding:1px 8px;border-radius:999px;min-width:22px;text-align:center;line-height:1.5}
+.tab.active .tab-badge{background:var(--primary-light);color:var(--primary)}
+
+.filters{display:flex;align-items:flex-end;gap:12px;padding:16px 20px;border:1px solid var(--border);border-radius:12px;background:#fff;margin:20px 0 16px;box-shadow:var(--shadow-sm);flex-wrap:wrap}
+.filter-item{display:flex;flex-direction:column;gap:4px;min-width:0}
+.filter-item label{font-size:.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.filter-item input,.filter-item select{font-family:Inter,sans-serif;font-size:.88rem;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;outline:none;background:#fff;color:var(--text);min-width:0;transition:border-color .15s ease}
+.filter-item input:focus,.filter-item select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,0.2)}
+.search-box{position:relative;flex:1;min-width:220px}
+.search-box i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.88rem;pointer-events:none}
+.search-box input{width:100%;padding-left:34px}
+.filter-export{margin-left:auto;display:flex;align-items:flex-end}
+
+.btn{font-family:Inter,sans-serif;font-size:.88rem;font-weight:500;padding:8px 18px;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .15s ease;background:#fff;color:var(--text);white-space:nowrap}
+.btn:hover{border-color:#D1D5DB;background:var(--gray-light)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn-outline{background:transparent;color:var(--text);border-color:var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:6px 14px;font-size:.82rem}
+
+.bulk-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;box-shadow:var(--shadow-sm);min-height:52px}
+.bulk-count{font-size:.85rem;font-weight:500;color:var(--text-secondary)}
+.bulk-actions{display:flex;gap:8px}
+.bulk-bar.hidden{display:none}
+
+.table-wrap{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.ticket-table{width:100%;border-collapse:collapse}
+.ticket-table thead{position:sticky;top:0;z-index:2}
+.ticket-table thead tr{background:var(--gray-light)}
+.ticket-table th{padding:12px 14px;text-align:left;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap}
+.ticket-table td{padding:12px 14px;font-size:.88rem;color:var(--text);border-bottom:1px solid var(--border);vertical-align:middle}
+.ticket-table tbody tr{transition:background .12s ease}
+.ticket-table tbody tr:nth-child(even){background:var(--bg)}
+.ticket-table tbody tr:hover{background:#EEF2FF}
+.ticket-table tbody tr:last-child td{border-bottom:none}
+
+.col-check{width:40px;text-align:center}
+.col-check input{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.col-id{width:120px}
+.col-app{width:140px}
+.col-user{width:130px}
+.col-subject{min-width:140px}
+.col-desc{min-width:180px}
+.col-status{width:110px}
+.col-sla{width:130px}
+.col-updated{width:90px}
+.col-actions{width:60px;text-align:center}
+
+.ticket-id-link{color:var(--primary);text-decoration:none;font-weight:600;cursor:pointer}
+.ticket-id-link:hover{text-decoration:underline}
+.subject-text{font-weight:600}
+.desc-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;max-height:2.8em;color:var(--text-secondary);word-break:break-word}
+
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:999px;font-size:.78rem;font-weight:600;white-space:nowrap;line-height:1.4}
+.status-pill .dot{width:6px;height:6px;border-radius:50%}
+.status-in_progress{background:var(--orange-light);color:var(--orange-dark)}
+.status-in_progress .dot{background:var(--orange)}
+.status-waiting{background:var(--purple-light);color:var(--purple-dark)}
+.status-waiting .dot{background:var(--purple)}
+.status-resolved{background:var(--green-light);color:var(--green-dark)}
+.status-resolved .dot{background:var(--green)}
+.status-closed{background:var(--gray-light);color:var(--gray-dark)}
+.status-closed .dot{background:var(--gray)}
+
+.sla-cell{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-secondary)}
+.sla-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sla-dot.ok{background:var(--green)}
+.sla-dot.warn{background:var(--orange)}
+.sla-dot.critical{background:#EF4444}
+.updated-cell{color:var(--text-secondary);font-size:.82rem;white-space:nowrap}
+
+.action-btn{width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s ease;font-size:1rem}
+.action-btn:hover{background:var(--gray-light);color:var(--text)}
+
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--border);background:#fff;flex-wrap:wrap;gap:12px}
+.pagination-info{font-size:.82rem;color:var(--text-secondary)}
+.pagination-controls{display:flex;align-items:center;gap:4px}
+.pagination-btn{min-width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:8px;background:#fff;font-family:Inter,sans-serif;font-size:.82rem;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all .15s ease;padding:0 8px}
+.pagination-btn:hover:not(.active):not(:disabled){border-color:var(--primary);color:var(--primary)}
+.pagination-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.pagination-btn:disabled{opacity:.4;cursor:default}
+
+.dropdown-menu{position:fixed;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);min-width:160px;padding:6px;display:none;z-index:1000}
+.dropdown-menu a{display:block;padding:8px 14px;text-decoration:none;color:var(--text);font-size:.88rem;border-radius:6px;transition:background .12s ease}
+.dropdown-menu a:hover{background:var(--gray-light)}
+.dropdown-menu hr{margin:6px 0;border:none;border-top:1px solid var(--border)}
+
+@media(max-width:1200px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr)}.content{padding:20px 16px}.topnav{padding:0 16px}}
+</style>
+
+<script>
+const APPS=['CRM Platform','ERP System','Inventory Management','HR Portal','Payment Gateway','Analytics Dashboard','Email Service','Authentication Service'];
+const NAMES=['Sarah Johnson','Michael Brown','Emily Davis','James Wilson','Jessica Taylor','David Martinez','Ashley Anderson','Robert Thomas','Amanda Jackson','Christopher White'];
+const SUBJECTS=[
+  'Unable to export customer reports','Login credentials not working','Payment processing failing intermittently','Dashboard loading slowly','Email notifications not being sent',
+  'User permissions incorrectly applied','Data synchronization error between systems','API rate limiting too restrictive','File upload failing for large documents','Search returning incomplete results',
+  'Session timeout occurring too frequently','Database backup process stuck','UI rendering issues on mobile viewport','Webhook delivery delayed by hours','Report generation taking too long',
+  'New user onboarding email broken','Password reset link expired prematurely','Integration with third-party API failing','Audit log entries missing timestamps','Role-based access not enforced correctly'
+];
+const ri=a=>a[Math.floor(Math.random()*a.length)];
+const rd=(b=30)=>{let d=new Date();d.setDate(d.getDate()-Math.floor(Math.random()*b));d.setHours(Math.floor(Math.random()*24),Math.floor(Math.random()*60));return d};
+function rs(){const h=Math.floor(Math.random()*48)+1;const m=Math.floor(Math.random()*60);return Math.random()<.15?'Overdue by '+h+'h '+m+'m':h+'h '+m+'m remaining'}
+
+const STATUSES=['in_progress','waiting','resolved','closed'];
+const TICKETS=[];
+for(let i=0;i<28;i++){
+  TICKETS.push({
+    id:'TICK-'+(1001+i),
+    application:ri(APPS),
+    raisedBy:ri(NAMES),
+    subject:SUBJECTS[i%SUBJECTS.length],
+    description:'Details: '+SUBJECTS[i%SUBJECTS.length]+'. Additional context and troubleshooting steps have been documented by the support team.',
+    status:STATUSES[i%STATUSES.length],
+    sla:rs(),
+    updated:rd(14)
+  });
+}
+
+let state={
+  activeTab:'all',search:'',filterStatus:'all',filterApp:'all',filterFrom:'',filterTo:'',
+  page:1,perPage:10,selected:new Set()
+};
+
+function timeAgo(d){
+  const n=Date.now(),t=d.getTime(),s=Math.round((n-t)/1000);
+  if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+function filterTickets(){
+  return TICKETS.filter(t=>{
+    const s=t.status;
+    if(state.activeTab==='open'&&!(s==='in_progress'||s==='waiting'||s==='resolved'))return false;
+    if(state.activeTab==='in_progress'&&s!=='in_progress')return false;
+    if(state.activeTab==='waiting'&&s!=='waiting')return false;
+    if(state.activeTab==='closed'&&s!=='closed')return false;
+    if(state.filterStatus!=='all'){
+      if(state.filterStatus==='open'&&!(s==='in_progress'||s==='waiting'||s==='resolved'))return false;
+      if(state.filterStatus!=='open'&&s!==state.filterStatus)return false;
+    }
+    if(state.filterApp!=='all'&&t.application!==state.filterApp)return false;
+    if(state.search){
+      const q=state.search.toLowerCase();
+      if(!t.id.toLowerCase().includes(q)&&!t.subject.toLowerCase().includes(q)&&!t.description.toLowerCase().includes(q)&&!t.raisedBy.toLowerCase().includes(q))return false;
+    }
+    if(state.filterFrom){
+      const f=new Date(state.filterFrom);
+      if(t.updated<f)return false;
+    }
+    if(state.filterTo){
+      const to=new Date(state.filterTo);
+      to.setHours(23,59,59,999);
+      if(t.updated>to)return false;
+    }
+    return true;
+  });
+}
+
+function getStatusMeta(s){
+  const m={
+    in_progress:{label:'In Progress',cls:'in_progress'},
+    waiting:{label:'Waiting',cls:'waiting'},
+    resolved:{label:'Resolved',cls:'resolved'},
+    closed:{label:'Closed',cls:'closed'}
+  };
+  return m[s]||{label:s,cls:s};
+}
+
+function slaDot(sla){
+  if(sla.startsWith('Overdue'))return 'critical';
+  const m=sla.match(/(\d+)h/);
+  if(m){const h=parseInt(m[1]);if(h<=1)return 'warn'}
+  return 'ok';
+}
+
+function renderKPI(){
+  const groups={total:TICKETS.length,ip:0,waiting:0,resolved:0,closed:0};
+  TICKETS.forEach(t=>{
+    if(t.status==='in_progress')groups.ip++;
+    else if(t.status==='waiting')groups.waiting++;
+    else if(t.status==='resolved')groups.resolved++;
+    else if(t.status==='closed')groups.closed++;
+  });
+  document.getElementById('kpiTotal').textContent=groups.total;
+  document.getElementById('kpiOpen').textContent=groups.ip+groups.waiting+groups.resolved;
+  document.getElementById('kpiInProgress').textContent=groups.ip;
+  document.getElementById('kpiWaiting').textContent=groups.waiting;
+  document.getElementById('kpiClosed').textContent=groups.closed;
+}
+
+function renderTabBadges(){
+  const all=TICKETS.length;
+  const open=TICKETS.filter(t=>t.status==='in_progress'||t.status==='waiting'||t.status==='resolved').length;
+  const ip=TICKETS.filter(t=>t.status==='in_progress').length;
+  const wait=TICKETS.filter(t=>t.status==='waiting').length;
+  const closed=TICKETS.filter(t=>t.status==='closed').length;
+  document.getElementById('badgeAll').textContent=all;
+  document.getElementById('badgeOpen').textContent=open;
+  document.getElementById('badgeIp').textContent=ip;
+  document.getElementById('badgeWaiting').textContent=wait;
+  document.getElementById('badgeClosed').textContent=closed;
+}
+
+function populateAppFilter(){
+  const apps=[...new Set(TICKETS.map(t=>t.application))];
+  const sel=document.getElementById('filterApp');
+  sel.innerHTML='<option value="all">All Applications</option>'+apps.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+}
+
+function render(){
+  const filtered=filterTickets();
+  const total=filtered.length;
+  const totalPages=Math.ceil(total/state.perPage)||1;
+  if(state.page>totalPages)state.page=totalPages;
+  const start=(state.page-1)*state.perPage;
+  const pageItems=filtered.slice(start,start+state.perPage);
+
+  const tbody=document.getElementById('tableBody');
+  tbody.innerHTML=pageItems.map(t=>{
+    const sm=getStatusMeta(t.status);
+    const sd=slaDot(t.sla);
+    const checked=state.selected.has(t.id)?'checked':'';
+    return '<tr>'+
+      '<td class="col-check"><input type="checkbox" class="row-check" data-id="'+t.id+'" '+checked+'></td>'+
+      '<td class="col-id"><a href="#" class="ticket-id-link">'+t.id+'</a></td>'+
+      '<td class="col-app">'+t.application+'</td>'+
+      '<td class="col-user">'+t.raisedBy+'</td>'+
+      '<td class="col-subject"><span class="subject-text">'+t.subject+'</span></td>'+
+      '<td class="col-desc"><div class="desc-text">'+t.description+'</div></td>'+
+      '<td class="col-status"><span class="status-pill status-'+sm.cls+'"><span class="dot"></span>'+sm.label+'</span></td>'+
+      '<td class="col-sla"><span class="sla-cell"><span class="sla-dot '+sd+'"></span>'+t.sla+'</span></td>'+
+      '<td class="col-updated"><span class="updated-cell">'+timeAgo(t.updated)+'</span></td>'+
+      '<td class="col-actions"><button class="action-btn" data-id="'+t.id+'"><i class="fas fa-ellipsis-v"></i></button></td>'+
+      '</tr>';
+  }).join('');
+
+  if(pageItems.length===0){
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:48px 16px;color:var(--text-muted)">No tickets found matching your filters.</td></tr>';
+  }
+
+  // Pagination
+  const p=document.getElementById('pagination');
+  let info='<span class="pagination-info">Showing '+(total?start+1:0)+' to '+Math.min(start+state.perPage,total)+' of '+total+' tickets</span>';
+  let controls='<div class="pagination-controls">';
+  controls+='<button class="pagination-btn" data-page="prev" '+(state.page<=1?'disabled':'')+'><i class="fas fa-chevron-left"></i></button>';
+  for(let i=1;i<=totalPages;i++){
+    controls+='<button class="pagination-btn'+(i===state.page?' active':'')+'" data-page="'+i+'">'+i+'</button>';
+  }
+  controls+='<button class="pagination-btn" data-page="next" '+(state.page>=totalPages?'disabled':'')+'><i class="fas fa-chevron-right"></i></button>';
+  controls+='</div>';
+  p.innerHTML=info+controls;
+
+  // Bulk bar visibility
+  const bb=document.getElementById('bulkBar');
+  if(state.selected.size>0){
+    bb.classList.remove('hidden');
+    document.getElementById('bulkCount').textContent=state.selected.size+' selected';
+  }else{
+    bb.classList.add('hidden');
+  }
+
+  // select all state
+  const sa=document.getElementById('selectAll');
+  const visIds=pageItems.map(t=>t.id);
+  const allChecked=visIds.length>0&&visIds.every(id=>state.selected.has(id));
+  sa.checked=allChecked;
+}
+
+function updateState(changes){
+  Object.assign(state,changes);
+  render();
+}
+
+// ========== EVENTS ==========
+
+// Tabs
+document.getElementById('tabsContainer').addEventListener('click',e=>{
+  const tab=e.target.closest('.tab');
+  if(!tab)return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('filterStatus').value='all';
+  updateState({activeTab:tab.dataset.tab,filterStatus:'all',page:1,selected:new Set()});
+});
+
+// Search
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input',e=>{
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    updateState({search:e.target.value,page:1,selected:new Set()});
+  },250);
+});
+
+// Status filter
+document.getElementById('filterStatus').addEventListener('change',e=>{
+  const status=e.target.value;
+  let tab=state.activeTab;
+  if(status==='all'&&tab!=='all'){tab='all';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="all"]').classList.add('active')}
+  if(status==='open'){tab='open';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="open"]').classList.add('active')}
+  if(status==='in_progress'){tab='in_progress';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="in_progress"]').classList.add('active')}
+  if(status==='waiting'){tab='waiting';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="waiting"]').classList.add('active')}
+  if(status==='closed'){tab='closed';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelector('[data-tab="closed"]').classList.add('active')}
+  updateState({filterStatus:status,activeTab:tab,page:1,selected:new Set()});
+});
+
+// App filter
+document.getElementById('filterApp').addEventListener('change',e=>{
+  updateState({filterApp:e.target.value,page:1,selected:new Set()});
+});
+
+// Date filters
+document.getElementById('filterFrom').addEventListener('change',e=>{
+  updateState({filterFrom:e.target.value,page:1,selected:new Set()});
+});
+document.getElementById('filterTo').addEventListener('change',e=>{
+  updateState({filterTo:e.target.value,page:1,selected:new Set()});
+});
+
+// Export button (filter)
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  const filtered=filterTickets();
+  const csv=[['Ticket ID','Application','Raised By','Subject','Description','Status','SLA','Updated']];
+  filtered.forEach(t=>{
+    csv.push([t.id,t.application,t.raisedBy,t.subject,t.description,getStatusMeta(t.status).label,t.sla,timeAgo(t.updated)]);
+  });
+  const blob=new Blob([csv.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tickets_export.csv';a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Select all
+document.getElementById('selectAll').addEventListener('change',e=>{
+  const filtered=filterTickets();
+  const start=(state.page-1)*state.perPage;
+  const pageItems=filtered.slice(start,start+state.perPage);
+  if(e.target.checked){
+    pageItems.forEach(t=>state.selected.add(t.id));
+  }else{
+    pageItems.forEach(t=>state.selected.delete(t.id));
+  }
+  render();
+});
+
+// Row checkboxes (event delegation)
+document.getElementById('tableBody').addEventListener('change',e=>{
+  const cb=e.target.closest('.row-check');
+  if(!cb)return;
+  if(cb.checked)state.selected.add(cb.dataset.id);
+  else state.selected.delete(cb.dataset.id);
+  render();
+});
+
+// Pagination
+document.getElementById('pagination').addEventListener('click',e=>{
+  const btn=e.target.closest('.pagination-btn');
+  if(!btn||btn.disabled)return;
+  const p=btn.dataset.page;
+  if(p==='prev')updateState({page:state.page-1});
+  else if(p==='next')updateState({page:state.page+1});
+  else updateState({page:parseInt(p)});
+});
+
+// User dropdown
+document.getElementById('userDropdown').addEventListener('click',e=>{
+  e.stopPropagation();
+  const m=document.getElementById('userMenu');
+  const r=document.getElementById('userDropdown').getBoundingClientRect();
+  m.style.top=(r.bottom+4)+'px';m.style.right=(window.innerWidth-r.right)+'px';m.style.left='auto';
+  m.style.display=m.style.display==='block'?'none':'block';
+});
+
+// Action menus (delegation)
+document.getElementById('tableBody').addEventListener('click',e=>{
+  const btn=e.target.closest('.action-btn');
+  if(!btn)return;
+  e.stopPropagation();
+  document.querySelectorAll('.dropdown-menu').forEach(m=>m.style.display='none');
+  const mid=btn.dataset.id;
+  const m=document.getElementById('actionMenu');
+  m.innerHTML='<a href="#" class="action-view" data-id="'+mid+'">View Details</a><a href="#" class="action-assign" data-id="'+mid+'">Assign SPOC</a><a href="#" class="action-status" data-id="'+mid+'">Change Status</a>';
+  const r=btn.getBoundingClientRect();
+  m.style.top=(r.bottom+2)+'px';m.style.left=r.left+'px';
+  m.style.display='block';
+});
+
+document.getElementById('actionMenu').addEventListener('click',e=>{
+  const a=e.target.closest('a');
+  if(!a)return;
+  const id=a.dataset.id;
+  if(a.classList.contains('action-assign')){
+    const name=prompt('Assign SPOC for '+id+':');
+    if(name)alert('SPOC "'+name+'" assigned to '+id);
+  }else if(a.classList.contains('action-status')){
+    const opts=['in_progress','waiting','resolved','closed'];
+    const cur=TICKETS.find(t=>t.id===id);
+    const nxt=opts[(opts.indexOf(cur.status)+1)%opts.length];
+    cur.status=nxt;
+    renderKPI();renderTabBadges();render();
+  }else if(a.classList.contains('action-view')){
+    alert('Viewing details for '+id);
+  }
+  document.getElementById('actionMenu').style.display='none';
+});
+
+// Bulk Status
+document.getElementById('bulkStatus').addEventListener('click',e=>{
+  e.stopPropagation();
+  const m=document.getElementById('bulkStatusMenu');
+  const r=document.getElementById('bulkStatus').getBoundingClientRect();
+  m.style.top=(r.bottom+2)+'px';m.style.left=r.left+'px';
+  m.style.display=m.style.display==='block'?'none':'block';
+});
+
+document.getElementById('bulkStatusMenu').addEventListener('click',e=>{
+  const a=e.target.closest('a');
+  if(!a)return;
+  const status=a.dataset.status;
+  TICKETS.forEach(t=>{if(state.selected.has(t.id))t.status=status});
+  state.selected.clear();
+  renderKPI();renderTabBadges();render();
+  document.getElementById('bulkStatusMenu').style.display='none';
+});
+
+// Bulk Assign
+document.getElementById('bulkAssign').addEventListener('click',()=>{
+  if(state.selected.size===0)return;
+  const name=prompt('Assign SPOC to '+state.selected.size+' selected tickets:');
+  if(name){
+    alert('SPOC "'+name+'" assigned to '+state.selected.size+' tickets.');
+    state.selected.clear();
+    render();
+  }
+});
+
+// Bulk Export
+document.getElementById('bulkExport').addEventListener('click',()=>{
+  if(state.selected.size===0)return;
+  const selected=TICKETS.filter(t=>state.selected.has(t.id));
+  const csv=[['Ticket ID','Application','Raised By','Subject','Description','Status','SLA','Updated']];
+  selected.forEach(t=>{
+    csv.push([t.id,t.application,t.raisedBy,t.subject,t.description,getStatusMeta(t.status).label,t.sla,timeAgo(t.updated)]);
+  });
+  const blob=new Blob([csv.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='selected_tickets.csv';a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Close dropdowns on outside click
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.dropdown-menu').forEach(m=>{
+    if(m.style.display==='block'&&!m.contains(e.target))m.style.display='none';
+  });
+});
+
+// Ticket ID links
+document.getElementById('tableBody').addEventListener('click',e=>{
+  const link=e.target.closest('.ticket-id-link');
+  if(!link)return;
+  e.preventDefault();
+  alert('Viewing details for '+link.textContent);
+});
+
+// ========== INIT ==========
+function init(){
+  populateAppFilter();
+  renderKPI();
+  renderTabBadges();
+  render();
+}
+init();
+</script>
+</body>
+</html>

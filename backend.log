@@ -1,0 +1,504 @@
+Building...
+[Config] Using SQL Server: localhost\SQLEXPRESS/ticketing_system
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'Application' has a global query filter defined and is the required end of a relationship with the entity 'ApplicationAssignment'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'User' has a global query filter defined and is the required end of a relationship with the entity 'Notification'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'Application' has a global query filter defined and is the required end of a relationship with the entity 'Ticket'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'User' has a global query filter defined and is the required end of a relationship with the entity 'TicketCorrectiveAction'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'TicketStatus' has a global query filter defined and is the required end of a relationship with the entity 'TicketStatusHistory'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (45ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (23ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (156ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [MigrationId], [ProductVersion]
+      FROM [__EFMigrationsHistory]
+      ORDER BY [MigrationId];
+info: Microsoft.EntityFrameworkCore.Migrations[20405]
+      No migrations were applied. The database is already up to date.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (65ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Roles] AS [r]
+              WHERE [r].[IsActive] = CAST(1 AS bit)) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (32ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketStatuses] AS [t]
+              WHERE [t].[IsActive] = CAST(1 AS bit)) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (174ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      
+            IF NOT EXISTS (SELECT * FROM sys.sequences WHERE name = 'TicketSequence')
+                CREATE SEQUENCE TicketSequence
+                    START WITH 1001
+                    INCREMENT BY 1
+                    NO CYCLE;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (43ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Departments] AS [d]) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (36ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Applications] AS [a]
+              WHERE [a].[IsActive] = CAST(1 AS bit) AND [a].[Name] = N'Unknown') THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (58ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Users] AS [u]
+              WHERE [u].[IsActive] = CAST(1 AS bit) AND [u].[Email] = N'admin@ticketingsystem.com') THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+[Config] Serving frontend from: D:\DOWNLOADS\6th sem\LNT_\Ticketin System\frontend\dist
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      AutoCloseService started. Checking every 00:15:00 for tickets to auto-close.
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      EmailReceiverService started. Polling interval: 5s
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (182ms) [Parameters=[@__cutoff_0='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT [t].[Id], [t].[ApplicationId], [t].[AssignedToUserId], [t].[ClosedAt], [t].[CreatedAt], [t].[Description], [t].[Priority], [t].[RequesterId], [t].[ResolvedAt], [t].[SlaBreachedAt], [t].[SlaDeadline], [t].[StatusId], [t].[Subject], [t].[TicketNumber], [t].[UpdatedAt], [r].[Id], [r].[Company], [r].[CreatedAt], [r].[Email], [r].[FullName], [r].[UpdatedAt], [t0].[Id], [t0].[Color], [t0].[CreatedAt], [t0].[DisplayName], [t0].[IsActive], [t0].[Name], [t0].[SortOrder]
+      FROM [Tickets] AS [t]
+      INNER JOIN [Requesters] AS [r] ON [t].[RequesterId] = [r].[Id]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Color], [t1].[CreatedAt], [t1].[DisplayName], [t1].[IsActive], [t1].[Name], [t1].[SortOrder]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t].[StatusId] = 3 AND [t].[ResolvedAt] IS NOT NULL AND [t].[ResolvedAt] < @__cutoff_0
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5000
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (43ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1003 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1004 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1010 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1015 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1019 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (3ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1022 has new replies since resolve, skipping auto-close
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+fail: TicketSystem.Api.Services.EmailReceiverService[0]
+      IMAP connection error. Will retry on next cycle.
+      System.IO.IOException: The read operation failed, see inner exception.
+       ---> System.TimeoutException: Operation timed out after 30000 milliseconds
+       ---> System.Threading.Tasks.TaskCanceledException: A task was canceled.
+         at MailKit.Net.NetworkStream.ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+         --- End of inner exception stack trace ---
+         at MailKit.Net.NetworkStream.ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+         at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+         --- End of inner exception stack trace ---
+         at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Threading.Tasks.ValueTask`1.ValueTaskSourceAsTask.<>c.<.cctor>b__4_0(Object state)
+      --- End of stack trace from previous location ---
+         at MailKit.Net.Imap.ImapStream.ReadAheadAsync(Int32 atleast, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapStream.ReadTokenAsync(String specials, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapEngine.ConnectAsync(ImapStream stream, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapClient.PostConnectAsync(Stream stream, String host, Int32 port, SecureSocketOptions options, Boolean starttls, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapClient.ConnectAsync(String host, Int32 port, SecureSocketOptions options, CancellationToken cancellationToken)
+         at TicketSystem.Api.Services.EmailReceiverService.PollInboxAsync(CancellationToken ct) in D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api\Services\EmailReceiverService.cs:line 74
+fail: TicketSystem.Api.Services.EmailReceiverService[0]
+      Email polling cycle failed. Retrying in 5s...
+      System.Net.Sockets.SocketException (10051): A socket operation was attempted to an unreachable network.
+         at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.ThrowException(SocketError error, CancellationToken cancellationToken)
+         at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.System.Threading.Tasks.Sources.IValueTaskSource.GetResult(Int16 token)
+         at System.Threading.Tasks.ValueTask.ValueTaskSourceAsTask.<>c.<.cctor>b__4_0(Object state)
+      --- End of stack trace from previous location ---
+         at System.Threading.Tasks.TaskToAsyncResult.End(IAsyncResult asyncResult)
+         at MailKit.Net.SocketUtils.SocketConnectState.OnEndConnect(IAsyncResult ar)
+      --- End of stack trace from previous location ---
+         at MailKit.Net.SocketUtils.ConnectAsync(String host, Int32 port, IPEndPoint localEndPoint, CancellationToken cancellationToken)
+         at MailKit.Net.SocketUtils.ConnectAsync(String host, Int32 port, IPEndPoint localEndPoint, Int32 timeout, CancellationToken cancellationToken)
+         at MailKit.MailService.ConnectNetworkAsync(String host, Int32 port, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapClient.ConnectAsync(String host, Int32 port, SecureSocketOptions options, CancellationToken cancellationToken)
+         at TicketSystem.Api.Services.EmailReceiverService.PollInboxAsync(CancellationToken ct) in D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api\Services\EmailReceiverService.cs:line 74
+         at TicketSystem.Api.Services.EmailReceiverService.ExecuteAsync(CancellationToken stoppingToken) in D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api\Services\EmailReceiverService.cs:line 42
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (23ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='Text', CommandTimeout='30']
+      SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[DepartmentId], [u].[Email], [u].[EmployeeId], [u].[FullName], [u].[IsActive], [u].[LastLoginAt], [u].[PasswordHash], [u].[RefreshToken], [u].[RefreshTokenExpiry], [u].[RoleId], [u].[UpdatedAt], [t].[Id], [t].[CreatedAt], [t].[Description], [t].[IsActive], [t].[Name], [d].[Id], [d].[CreatedAt], [d].[HeadName], [d].[IsActive], [d].[Name], [d].[UpdatedAt]
+      FROM [Users] AS [u]
+      INNER JOIN (
+          SELECT [r].[Id], [r].[CreatedAt], [r].[Description], [r].[IsActive], [r].[Name]
+          FROM [Roles] AS [r]
+          WHERE [r].[IsActive] = CAST(1 AS bit)
+      ) AS [t] ON [u].[RoleId] = [t].[Id]
+      INNER JOIN [Departments] AS [d] ON [u].[DepartmentId] = [d].[Id]
+      WHERE [u].[IsActive] = CAST(1 AS bit) AND [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (37ms) [Parameters=[@p12='?' (DbType = Int32), @p0='?' (DbType = DateTime2), @p1='?' (DbType = Int32), @p2='?' (Size = 255), @p3='?' (Size = 20), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTime2), @p7='?' (Size = 500), @p8='?' (Size = 500), @p9='?' (DbType = DateTime2), @p10='?' (DbType = Int32), @p11='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      UPDATE [Users] SET [CreatedAt] = @p0, [DepartmentId] = @p1, [Email] = @p2, [EmployeeId] = @p3, [FullName] = @p4, [IsActive] = @p5, [LastLoginAt] = @p6, [PasswordHash] = @p7, [RefreshToken] = @p8, [RefreshTokenExpiry] = @p9, [RoleId] = @p10, [UpdatedAt] = @p11
+      OUTPUT 1
+      WHERE [Id] = @p12;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@p12='?' (DbType = Int32), @p0='?' (DbType = DateTime2), @p1='?' (DbType = Int32), @p2='?' (Size = 255), @p3='?' (Size = 20), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTime2), @p7='?' (Size = 500), @p8='?' (Size = 500), @p9='?' (DbType = DateTime2), @p10='?' (DbType = Int32), @p11='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      UPDATE [Users] SET [CreatedAt] = @p0, [DepartmentId] = @p1, [Email] = @p2, [EmployeeId] = @p3, [FullName] = @p4, [IsActive] = @p5, [LastLoginAt] = @p6, [PasswordHash] = @p7, [RefreshToken] = @p8, [RefreshTokenExpiry] = @p9, [RoleId] = @p10, [UpdatedAt] = @p11
+      OUTPUT 1
+      WHERE [Id] = @p12;
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+fail: TicketSystem.Api.Services.EmailReceiverService[0]
+      IMAP connection error. Will retry on next cycle.
+      System.IO.IOException: An existing connection was forcibly closed by the remote host.
+       ---> System.Net.Sockets.SocketException (10054): An existing connection was forcibly closed by the remote host.
+         at MailKit.Net.NetworkStream.ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+         --- End of inner exception stack trace ---
+         at MailKit.Net.NetworkStream.ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+         at System.Net.Security.SslStream.EnsureFullTlsFrameAsync[TIOAdapter](CancellationToken cancellationToken, Int32 estimatedSize)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Net.Security.SslStream.ReadAsyncInternal[TIOAdapter](Memory`1 buffer, CancellationToken cancellationToken)
+         at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+         at System.Threading.Tasks.ValueTask`1.ValueTaskSourceAsTask.<>c.<.cctor>b__4_0(Object state)
+      --- End of stack trace from previous location ---
+         at MailKit.Net.Imap.ImapStream.ReadAheadAsync(Int32 atleast, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapStream.ReadTokenAsync(String specials, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapEngine.ConnectAsync(ImapStream stream, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapClient.PostConnectAsync(Stream stream, String host, Int32 port, SecureSocketOptions options, Boolean starttls, CancellationToken cancellationToken)
+         at MailKit.Net.Imap.ImapClient.ConnectAsync(String host, Int32 port, SecureSocketOptions options, CancellationToken cancellationToken)
+         at TicketSystem.Api.Services.EmailReceiverService.PollInboxAsync(CancellationToken ct) in D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api\Services\EmailReceiverService.cs:line 74
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (87ms) [Parameters=[@__cutoff_0='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT [t].[Id], [t].[ApplicationId], [t].[AssignedToUserId], [t].[ClosedAt], [t].[CreatedAt], [t].[Description], [t].[Priority], [t].[RequesterId], [t].[ResolvedAt], [t].[SlaBreachedAt], [t].[SlaDeadline], [t].[StatusId], [t].[Subject], [t].[TicketNumber], [t].[UpdatedAt], [r].[Id], [r].[Company], [r].[CreatedAt], [r].[Email], [r].[FullName], [r].[UpdatedAt], [t0].[Id], [t0].[Color], [t0].[CreatedAt], [t0].[DisplayName], [t0].[IsActive], [t0].[Name], [t0].[SortOrder]
+      FROM [Tickets] AS [t]
+      INNER JOIN [Requesters] AS [r] ON [t].[RequesterId] = [r].[Id]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Color], [t1].[CreatedAt], [t1].[DisplayName], [t1].[IsActive], [t1].[Name], [t1].[SortOrder]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t].[StatusId] = 3 AND [t].[ResolvedAt] IS NOT NULL AND [t].[ResolvedAt] < @__cutoff_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (16ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1003 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1004 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1010 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1015 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1019 has new replies since resolve, skipping auto-close
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@__ticket_Id_0='?' (DbType = Int32), @__ticket_ResolvedAt_1='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketMessages] AS [t]
+              WHERE [t].[TicketId] = @__ticket_Id_0 AND [t].[CreatedAt] > @__ticket_ResolvedAt_1) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: TicketSystem.Api.Services.AutoCloseService[0]
+      Ticket TKT-1022 has new replies since resolve, skipping auto-close
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993

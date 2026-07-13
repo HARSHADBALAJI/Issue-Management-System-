@@ -1,0 +1,197 @@
+Building...
+[Config] Using SQL Server: localhost\SQLEXPRESS/ticketing_system
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'Application' has a global query filter defined and is the required end of a relationship with the entity 'ApplicationAssignment'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'User' has a global query filter defined and is the required end of a relationship with the entity 'Notification'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'Application' has a global query filter defined and is the required end of a relationship with the entity 'Ticket'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'User' has a global query filter defined and is the required end of a relationship with the entity 'TicketCorrectiveAction'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+warn: Microsoft.EntityFrameworkCore.Model.Validation[10622]
+      Entity 'TicketStatus' has a global query filter defined and is the required end of a relationship with the entity 'TicketStatusHistory'. This may lead to unexpected results when the required entity is filtered out. Either configure the navigation as optional, or define matching query filters for both entities in the navigation. See https://go.microsoft.com/fwlink/?linkid=2131316 for more information.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (81ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (291ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (10ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (612ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [MigrationId], [ProductVersion]
+      FROM [__EFMigrationsHistory]
+      ORDER BY [MigrationId];
+info: Microsoft.EntityFrameworkCore.Migrations[20405]
+      No migrations were applied. The database is already up to date.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (181ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Roles] AS [r]
+              WHERE [r].[IsActive] = CAST(1 AS bit)) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (18ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [TicketStatuses] AS [t]
+              WHERE [t].[IsActive] = CAST(1 AS bit)) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (701ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      
+            IF NOT EXISTS (SELECT * FROM sys.sequences WHERE name = 'TicketSequence')
+                CREATE SEQUENCE TicketSequence
+                    START WITH 1001
+                    INCREMENT BY 1
+                    NO CYCLE;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (40ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Departments] AS [d]) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (8ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Applications] AS [a]
+              WHERE [a].[IsActive] = CAST(1 AS bit) AND [a].[Name] = N'Unknown') THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (8ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Users] AS [u]
+              WHERE [u].[IsActive] = CAST(1 AS bit) AND [u].[Email] = N'admin@ticketingsystem.com') THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+[Config] Serving frontend from: D:\DOWNLOADS\6th sem\LNT_\Ticketin System\frontend\dist
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      EmailReceiverService started. Polling interval: 60s
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5001
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: D:\DOWNLOADS\6th sem\LNT_\Ticketin System\backend\TicketSystem.Api
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: TicketSystem.Api.Services.EmailReceiverService[0]
+      Connected to IMAP server imap.gmail.com:993
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (276ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='Text', CommandTimeout='30']
+      SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[DepartmentId], [u].[Email], [u].[EmployeeId], [u].[FullName], [u].[IsActive], [u].[LastLoginAt], [u].[PasswordHash], [u].[RefreshToken], [u].[RefreshTokenExpiry], [u].[RoleId], [u].[UpdatedAt], [t].[Id], [t].[CreatedAt], [t].[Description], [t].[IsActive], [t].[Name], [d].[Id], [d].[CreatedAt], [d].[HeadName], [d].[IsActive], [d].[Name], [d].[UpdatedAt]
+      FROM [Users] AS [u]
+      INNER JOIN (
+          SELECT [r].[Id], [r].[CreatedAt], [r].[Description], [r].[IsActive], [r].[Name]
+          FROM [Roles] AS [r]
+          WHERE [r].[IsActive] = CAST(1 AS bit)
+      ) AS [t] ON [u].[RoleId] = [t].[Id]
+      INNER JOIN [Departments] AS [d] ON [u].[DepartmentId] = [d].[Id]
+      WHERE [u].[IsActive] = CAST(1 AS bit) AND [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (141ms) [Parameters=[@p12='?' (DbType = Int32), @p0='?' (DbType = DateTime2), @p1='?' (DbType = Int32), @p2='?' (Size = 255), @p3='?' (Size = 20), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTime2), @p7='?' (Size = 500), @p8='?' (Size = 500), @p9='?' (DbType = DateTime2), @p10='?' (DbType = Int32), @p11='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      UPDATE [Users] SET [CreatedAt] = @p0, [DepartmentId] = @p1, [Email] = @p2, [EmployeeId] = @p3, [FullName] = @p4, [IsActive] = @p5, [LastLoginAt] = @p6, [PasswordHash] = @p7, [RefreshToken] = @p8, [RefreshTokenExpiry] = @p9, [RoleId] = @p10, [UpdatedAt] = @p11
+      OUTPUT 1
+      WHERE [Id] = @p12;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (21ms) [Parameters=[@p12='?' (DbType = Int32), @p0='?' (DbType = DateTime2), @p1='?' (DbType = Int32), @p2='?' (Size = 255), @p3='?' (Size = 20), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTime2), @p7='?' (Size = 500), @p8='?' (Size = 500), @p9='?' (DbType = DateTime2), @p10='?' (DbType = Int32), @p11='?' (DbType = DateTime2)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      UPDATE [Users] SET [CreatedAt] = @p0, [DepartmentId] = @p1, [Email] = @p2, [EmployeeId] = @p3, [FullName] = @p4, [IsActive] = @p5, [LastLoginAt] = @p6, [PasswordHash] = @p7, [RefreshToken] = @p8, [RefreshTokenExpiry] = @p9, [RoleId] = @p10, [UpdatedAt] = @p11
+      OUTPUT 1
+      WHERE [Id] = @p12;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (25ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (77ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Name]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t0].[Name] = N'open'
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (7ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Name]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t0].[Name] = N'in_progress'
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (9ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Name]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t0].[Name] = N'waiting'
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (6ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Name]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t0].[Name] = N'resolved'
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (5ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      INNER JOIN (
+          SELECT [t1].[Id], [t1].[Name]
+          FROM [TicketStatuses] AS [t1]
+          WHERE [t1].[IsActive] = CAST(1 AS bit)
+      ) AS [t0] ON [t].[StatusId] = [t0].[Id]
+      WHERE [t0].[Name] = N'closed'
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (100ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      WHERE [t].[SlaDeadline] IS NOT NULL AND [t].[SlaDeadline] < GETUTCDATE()
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (6ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [t].[ResolvedAt], [t].[CreatedAt]
+      FROM [Tickets] AS [t]
+      WHERE [t].[ResolvedAt] IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*)
+      FROM [Tickets] AS [t]
+      WHERE [t].[SlaDeadline] IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (38ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [t].[Priority], COUNT(*) AS [Count]
+      FROM [Tickets] AS [t]
+      GROUP BY [t].[Priority]
