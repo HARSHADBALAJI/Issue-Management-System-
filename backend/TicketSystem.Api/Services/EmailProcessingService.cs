@@ -62,6 +62,15 @@ public partial class EmailProcessingService : IEmailProcessingService
             return;
         }
 
+        // Skip bounce-back / mailer-daemon notifications
+        var skipSenders = new[] { "mailer-daemon", "postmaster", "no-reply", "noreply", "donotreply" };
+        var localPart = fromAddress.Split('@')[0].ToLowerInvariant();
+        if (skipSenders.Any(s => localPart == s || localPart.EndsWith("-noreply") || localPart.EndsWith("-donotreply")))
+        {
+            _logger.LogInformation("Skipping non-user email from {From}", fromAddress);
+            return;
+        }
+
         // 1. Check for duplicate by MessageId
         var existingEmail = await _context.EmailMessages
             .AsNoTracking()

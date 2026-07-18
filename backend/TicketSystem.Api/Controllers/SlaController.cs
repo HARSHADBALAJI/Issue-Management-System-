@@ -206,7 +206,7 @@ public class SlaController : ControllerBase
         try
         {
             var sla = await _slaService.GetTicketSlaAsync(ticketId);
-            if (sla == null) return NotFound("SLA not found for this ticket");
+            if (sla == null) return Ok(new { });
             return Ok(sla);
         }
         catch (Exception ex)

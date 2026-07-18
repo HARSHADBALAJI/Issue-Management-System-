@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using TicketSystem.Api.Data;
@@ -100,7 +101,8 @@ if (dbDriver == "sqlite" || useSqliteFallback)
     var sqlitePath = Path.Combine(AppContext.BaseDirectory, $"{dbDatabase}.db");
     Console.WriteLine($"[Config] Using SQLite: {sqlitePath}");
     builder.Services.AddDbContext<TicketSystemDbContext>(options =>
-        options.UseSqlite($"Data Source={sqlitePath}"));
+        options.UseSqlite($"Data Source={sqlitePath}")
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 }
 else if (dbDriver == "sqlserver")
 {
@@ -112,7 +114,8 @@ else if (dbDriver == "sqlserver")
         : $"Server={serverPart};Database={dbDatabase};User Id={dbUser};Password={dbPass};TrustServerCertificate=True;MultipleActiveResultSets=True";
     Console.WriteLine($"[Config] Using SQL Server: {serverPart}/{dbDatabase}");
     builder.Services.AddDbContext<TicketSystemDbContext>(options =>
-        options.UseSqlServer(connStr));
+        options.UseSqlServer(connStr)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 }
 else
 {

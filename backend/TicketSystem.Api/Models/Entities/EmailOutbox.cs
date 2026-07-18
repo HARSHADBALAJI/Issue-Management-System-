@@ -17,6 +17,7 @@ public class EmailOutbox
 
     public string? InReplyTo { get; set; }
     public string? References { get; set; }
+    public string? InlineAttachmentsJson { get; set; }
 
     public string Status { get; set; } = "Pending";
     public int RetryCount { get; set; }

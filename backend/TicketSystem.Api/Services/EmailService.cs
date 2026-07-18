@@ -21,14 +21,47 @@ public class EmailService : IEmailService
         _outbox = outbox;
         _systemEmail = Environment.GetEnvironmentVariable("SYSTEM_USER_EMAIL") ?? config["Email:SystemEmail"] ?? "noreply@ticketingsystem.com";
 
-        var baseDir = AppContext.BaseDirectory;
-        _templatePath = Path.Combine(baseDir, "Templates", "Email");
-        if (!Directory.Exists(_templatePath))
+        _templatePath = FindTemplatePath();
+        _logger.LogInformation("Email template path resolved to: {Path}", _templatePath);
+    }
+
+    private string FindTemplatePath()
+    {
+        // 1. AppContext.BaseDirectory/Templates/Email (standard publish output)
+        var candidates = new[]
         {
-            var fallback = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "Email");
-            if (Directory.Exists(fallback))
-                _templatePath = fallback;
+            Path.Combine(AppContext.BaseDirectory, "Templates", "Email"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Templates", "Email"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Templates", "Email"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "backend", "TicketSystem.Api", "Templates", "Email"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "TicketSystem.Api", "Templates", "Email"),
+        };
+
+        foreach (var c in candidates)
+        {
+            var resolved = Path.GetFullPath(c);
+            if (Directory.Exists(resolved))
+            {
+                _logger.LogInformation("Found email templates at: {Path}", resolved);
+                return resolved;
+            }
         }
+
+        // 2. Walk up from current directory looking for Templates/Email
+        var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+        for (var i = 0; i < 10 && dir != null; i++)
+        {
+            var candidate = Path.Combine(dir.FullName, "Templates", "Email");
+            if (Directory.Exists(candidate))
+            {
+                _logger.LogInformation("Found email templates by walk-up at: {Path}", candidate);
+                return candidate;
+            }
+            dir = dir.Parent;
+        }
+
+        _logger.LogWarning("Email template path not found in any candidate location");
+        return Path.Combine(AppContext.BaseDirectory, "Templates", "Email");
     }
 
     private string LoadTemplate(string name)
@@ -165,6 +198,7 @@ public class EmailService : IEmailService
         {
             var appName = await GetApplicationNameAsync(ticket);
             var subject = "New Update on Your Ticket | #" + ticket.TicketNumber;
+            var (imagesHtml, inlineAttachments) = await BuildInlineImagesAsync(message.Id, ticket.Id);
             var body = PopulateTemplate(template, new Dictionary<string, string>
             {
                 ["RecipientName"] = requester.FullName,
@@ -173,10 +207,11 @@ public class EmailService : IEmailService
                 ["Subject"] = ticket.Subject ?? "",
                 ["SenderName"] = spoc.FullName,
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
-                ["Message"] = message.Content ?? ""
+                ["Message"] = message.Content ?? "",
+                ["ImageAttachments"] = imagesHtml
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
-            var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id);
+            var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
             await SaveOutgoingEmailAsync(spoc.Id, requester.Id, subject, requester.Email, _systemEmail, "Sent", ticket.Id, msgId, inReplyTo, references);
         }
         else
@@ -194,6 +229,7 @@ public class EmailService : IEmailService
         {
             var appName = await GetApplicationNameAsync(ticket);
             var subject = "New Update on Your Ticket | #" + ticket.TicketNumber;
+            var (imagesHtml, inlineAttachments) = await BuildInlineImagesAsync(message.Id, ticket.Id);
             var body = PopulateTemplate(template, new Dictionary<string, string>
             {
                 ["RecipientName"] = spoc.FullName,
@@ -202,10 +238,11 @@ public class EmailService : IEmailService
                 ["Subject"] = ticket.Subject ?? "",
                 ["SenderName"] = requester.FullName,
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
-                ["Message"] = message.Content ?? ""
+                ["Message"] = message.Content ?? "",
+                ["ImageAttachments"] = imagesHtml
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
-            var msgId = await SendEmailAsync(spoc.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id);
+            var msgId = await SendEmailAsync(spoc.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
             await SaveOutgoingEmailAsync(spoc.Id, requester.Id, subject, spoc.Email, _systemEmail, "Sent", ticket.Id, msgId, inReplyTo, references);
         }
         else
@@ -377,6 +414,7 @@ public class EmailService : IEmailService
         {
             var appName = await GetApplicationNameAsync(ticket);
             var subject = "New Update on Your Ticket | #" + ticket.TicketNumber;
+            var (imagesHtml, inlineAttachments) = await BuildInlineImagesAsync(message.Id, ticket.Id);
             var body = PopulateTemplate(template, new Dictionary<string, string>
             {
                 ["RecipientName"] = "User",
@@ -385,10 +423,11 @@ public class EmailService : IEmailService
                 ["Subject"] = ticket.Subject ?? "",
                 ["SenderName"] = senderName ?? "System",
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
-                ["Message"] = message.Content ?? ""
+                ["Message"] = message.Content ?? "",
+                ["ImageAttachments"] = imagesHtml
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
-            var msgId = await SendEmailAsync(recipientEmail, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id);
+            var msgId = await SendEmailAsync(recipientEmail, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
             await SaveOutgoingEmailAsync(null, ticket.RequesterId, subject, recipientEmail, _systemEmail, "Sent", ticket.Id, msgId, inReplyTo, references);
         }
         else
@@ -417,7 +456,7 @@ public class EmailService : IEmailService
         }
     }
 
-    private async Task<string?> SendEmailAsync(string toEmail, string subject, string body, string? ticketNumber = null, string? inReplyTo = null, string? references = null, int? ticketMessageId = null)
+    private async Task<string?> SendEmailAsync(string toEmail, string subject, string body, string? ticketNumber = null, string? inReplyTo = null, string? references = null, int? ticketMessageId = null, List<InlineAttachmentInfo>? inlineAttachments = null)
     {
         try
         {
@@ -431,7 +470,7 @@ public class EmailService : IEmailService
 
             await _outbox.EnqueueAsync(toEmail, subject, body, plainText,
                 inReplyTo: inReplyTo, references: references, senderEmail: _systemEmail,
-                ticketMessageId: ticketMessageId);
+                ticketMessageId: ticketMessageId, inlineAttachments: inlineAttachments);
 
             _logger.LogInformation("Enqueued email to {To} subject={Subject}", toEmail, subject);
             return msgId;
@@ -478,6 +517,51 @@ public class EmailService : IEmailService
         {
             _logger.LogError(ex, "Failed to save outgoing email record");
         }
+    }
+
+    private async Task<(string imagesHtml, List<InlineAttachmentInfo> inlineAttachments)> BuildInlineImagesAsync(int ticketMessageId, int ticketId)
+    {
+        var attachments = await _context.TicketAttachments
+            .AsNoTracking()
+            .Where(a => a.TicketMessageId == ticketMessageId)
+            .ToListAsync();
+
+        var imageAttachments = attachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
+        if (imageAttachments.Count == 0) return ("", []);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<div style=\"margin-bottom:24px;\">");
+        sb.AppendLine("<p style=\"margin:0 0 10px 0;font-size:11px;text-transform:uppercase;color:#999999;letter-spacing:0.5px;\">Attachments</p>");
+        sb.AppendLine("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"border:1px solid #E0E0E0;border-radius:8px;overflow:hidden;\">");
+
+        var inlineAttachments = new List<InlineAttachmentInfo>();
+
+        foreach (var att in imageAttachments)
+        {
+            var cid = $"img_{ticketId}_{att.Id}@ticketingsystem";
+            sb.AppendLine("<tr><td style=\"padding:12px 16px;border-bottom:1px solid #F0F0F0;\">");
+            sb.AppendLine($"<img src=\"cid:{cid}\" alt=\"{System.Net.WebUtility.HtmlEncode(att.FileName)}\" style=\"max-width:500px;max-height:400px;border-radius:6px;display:block;\" />");
+            sb.AppendLine($"<p style=\"margin:6px 0 0 0;font-size:12px;color:#999999;\">{System.Net.WebUtility.HtmlEncode(att.FileName)} ({FormatFileSize(att.FileSize)})</p>");
+            sb.AppendLine("</td></tr>");
+
+            inlineAttachments.Add(new InlineAttachmentInfo
+            {
+                FileName = att.FileName,
+                ContentType = att.ContentType,
+                ContentId = cid,
+                Data = att.FileData
+            });
+        }
+
+        sb.AppendLine("</table></div>");
+        return (sb.ToString(), inlineAttachments);
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
     private static string? SanitizeMessageId(string? id)

@@ -100,6 +100,7 @@ function formatFileSize(bytes) {
 
 export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) {
   const [ticket, setTicket] = useState(null)
+  const [ticketError, setTicketError] = useState(null)
   const [slaInfo, setSlaInfo] = useState(null)
   const [slaLoading, setSlaLoading] = useState(false)
   const [replyText, setReplyText] = useState('')
@@ -123,12 +124,14 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
 
   const fetchTicket = useCallback(async () => {
     if (!ticketId) return
+    setTicketError(null)
     setSlaLoading(true)
     try {
       const t = await ticketService.getById(ticketId)
       setTicket(normalizeTicketDetail(t))
     } catch (err) {
       console.error('fetchTicket failed:', err)
+      setTicketError(err?.response?.data?.detail || err?.message || 'Failed to load ticket')
     }
     try {
       const sla = await slaService.getTicketSla(ticketId)
@@ -152,7 +155,7 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
   useEffect(() => {
     if (!ticketId) return
     const handler = (data) => {
-      if (data.id === ticketId) fetchTicket()
+      if (data.ticketId === ticketId || data.id === ticketId) fetchTicket()
     }
     onEvent('TicketUpdated', handler)
     return () => offEvent('TicketUpdated')
@@ -314,6 +317,14 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
     return ticketService.getAttachmentUrl(attachment.ticketId, attachment.id) + `?t=${Date.now()}`
   }
 
+  if (ticketError) return (
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <i className="fas fa-exclamation-triangle" style={{ fontSize: 32, color: '#EF4444', marginBottom: 12 }} />
+      <p style={{ color: '#EF4444', fontWeight: 600 }}>Failed to load ticket</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>{ticketError}</p>
+      <button onClick={onBack} style={{ marginTop: 16, padding: '8px 20px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Back to Tickets</button>
+    </div>
+  )
   if (!ticket) return <div className="page-loading"><i className="fas fa-spinner fa-spin" /> Loading ticket...</div>
 
   return (

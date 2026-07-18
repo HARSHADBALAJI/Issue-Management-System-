@@ -1,3 +1,16 @@
+# Node modules
 frontend/node_modules/
+
+# .NET build folders
 backend/TicketSystem.Api/bin/
 backend/TicketSystem.Api/obj/
+
+# Environment files
+.env
+**/.env
+
+# Logs
+*.log
+
+# Frontend build output (if you don't want to commit it)
+frontend/dist/

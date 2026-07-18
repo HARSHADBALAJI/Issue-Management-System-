@@ -1,11 +1,21 @@
-using System.Net.Security;
-using System.Security.Cryptography.X509Certificates;
-using MailKit;
-using MailKit.Net.Imap;
-using MailKit.Search;
-using MailKit.Security;
-using MimeKit;
-using MimeKit.Text;
+// ================================================================
+// Gmail REST API-based Email Receiver (HTTPS / port 443)
+// Replaces the old IMAP-based receiver that was blocked by firewall.
+//
+// Uses raw HttpClient + OAuth2 refresh token to call Gmail API.
+// No complex Google SDK credential classes needed.
+//
+// Required env vars:
+//   GMAIL_CLIENT_ID      - OAuth2 client ID
+//   GMAIL_CLIENT_SECRET  - OAuth2 client secret
+//   GMAIL_REFRESH_TOKEN  - OAuth2 refresh token
+//   GMAIL_USER_EMAIL     - Gmail address to read from
+//   EMAIL_POLL_INTERVAL_SECONDS - Polling interval (default: 10)
+// ================================================================
+
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 namespace TicketSystem.Api.Services;
 
@@ -13,32 +23,45 @@ public class EmailReceiverService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<EmailReceiverService> _logger;
-    private readonly string _imapHost;
-    private readonly int _imapPort;
-    private readonly string _imapUser;
-    private readonly string _imapPassword;
+    private readonly string _clientId;
+    private readonly string _clientSecret;
+    private readonly string _refreshToken;
+    private readonly string _userEmail;
     private readonly int _pollIntervalSeconds;
-    private ImapClient? _client;
+    private readonly HttpClient _http;
+    private string? _accessToken;
+    private DateTime _tokenExpiry = DateTime.MinValue;
 
     public EmailReceiverService(IServiceScopeFactory scopeFactory, IConfiguration config, ILogger<EmailReceiverService> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _imapHost = Environment.GetEnvironmentVariable("IMAP_HOST") ?? config["Email:Imap:Host"] ?? "";
-        _imapPort = int.TryParse(Environment.GetEnvironmentVariable("IMAP_PORT") ?? config["Email:Imap:Port"], out var p) ? p : 993;
-        _imapUser = Environment.GetEnvironmentVariable("IMAP_USER") ?? config["Email:Imap:User"] ?? "";
-        _imapPassword = Environment.GetEnvironmentVariable("IMAP_PASSWORD") ?? config["Email:Imap:Password"] ?? "";
+        _http = new HttpClient();
+
+        _clientId = Environment.GetEnvironmentVariable("GMAIL_CLIENT_ID") ?? "";
+        _clientSecret = Environment.GetEnvironmentVariable("GMAIL_CLIENT_SECRET") ?? "";
+        _refreshToken = Environment.GetEnvironmentVariable("GMAIL_REFRESH_TOKEN") ?? "";
+        _userEmail = Environment.GetEnvironmentVariable("GMAIL_USER_EMAIL")
+                     ?? Environment.GetEnvironmentVariable("IMAP_USER")
+                     ?? config["Email:Imap:User"]
+                     ?? "";
+
         _pollIntervalSeconds = int.TryParse(
-            Environment.GetEnvironmentVariable("EMAIL_POLL_INTERVAL_SECONDS") ?? config["Email:PollIntervalSeconds"], out var i) ? i : 60;
+            Environment.GetEnvironmentVariable("EMAIL_POLL_INTERVAL_SECONDS")
+            ?? config["Email:PollIntervalSeconds"], out var i) ? i : 10;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("EmailReceiverService started. Polling interval: {Interval}s", _pollIntervalSeconds);
+        _logger.LogInformation(
+            "EmailReceiverService [Gmail REST API] started. Poll={Interval}s User={User}",
+            _pollIntervalSeconds, _userEmail);
 
-        if (string.IsNullOrWhiteSpace(_imapHost))
+        if (string.IsNullOrWhiteSpace(_clientId) || string.IsNullOrWhiteSpace(_clientSecret) || string.IsNullOrWhiteSpace(_refreshToken))
         {
-            _logger.LogWarning("IMAP_HOST is not configured. Email receiving is DISABLED. Set IMAP_HOST, IMAP_USER, IMAP_PASSWORD environment variables or configure Email:Imap in appsettings.json.");
+            _logger.LogWarning(
+                "Gmail OAuth2 credentials not configured. Email receiving DISABLED. " +
+                "Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN in .env");
             await Task.Delay(Timeout.Infinite, stoppingToken);
             return;
         }
@@ -47,7 +70,7 @@ public class EmailReceiverService : BackgroundService
         {
             try
             {
-                await EnsureConnectedAsync(stoppingToken);
+                await EnsureAccessTokenAsync(stoppingToken);
                 await PollInboxAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -57,211 +80,284 @@ public class EmailReceiverService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Email polling cycle failed. Retrying in {Interval}s...", _pollIntervalSeconds);
-                await DisposeClientAsync();
+                _accessToken = null; // Force token refresh
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken);
         }
 
-        await DisposeClientAsync();
         _logger.LogInformation("EmailReceiverService stopped");
     }
 
-    private async Task EnsureConnectedAsync(CancellationToken ct)
-    {
-        if (_client?.IsConnected == true && _client?.IsAuthenticated == true) return;
+    // ── OAuth2 Token Refresh ──────────────────────────────────────
 
-        await DisposeClientAsync();
-        _client = new ImapClient();
-        _client.Timeout = 30000;
-        _client.ServerCertificateValidationCallback = (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors) =>
+    private async Task EnsureAccessTokenAsync(CancellationToken ct)
+    {
+        if (_accessToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-1))
+            return;
+
+        var form = new Dictionary<string, string>
         {
-            if (sslPolicyErrors == SslPolicyErrors.None) return true;
-            _logger.LogWarning("SSL certificate validation failed: {Errors}. Accepting anyway.", sslPolicyErrors);
-            return true;
+            ["client_id"] = _clientId,
+            ["client_secret"] = _clientSecret,
+            ["refresh_token"] = _refreshToken,
+            ["grant_type"] = "refresh_token"
         };
 
-        await _client.ConnectAsync(_imapHost, _imapPort, SecureSocketOptions.Auto, ct);
-        await _client.AuthenticateAsync(_imapUser, _imapPassword, ct);
-        _logger.LogInformation("Connected to IMAP server {Host}:{Port}", _imapHost, _imapPort);
+        var resp = await _http.PostAsync("https://oauth2.googleapis.com/token",
+            new FormUrlEncodedContent(form), ct);
+        resp.EnsureSuccessStatusCode();
+
+        var json = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        _accessToken = root.GetProperty("access_token").GetString()!;
+        var expiresIn = root.GetProperty("expires_in").GetInt32();
+        _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn);
+
+        _logger.LogDebug("Access token refreshed, expires in {Seconds}s", expiresIn);
     }
 
-    private async Task DisposeClientAsync()
+    private HttpRequestMessage GmailRequest(string url)
     {
-        if (_client != null)
-        {
-            try { if (_client.IsConnected) await _client.DisconnectAsync(true); }
-            catch { /* ignore cleanup errors */ }
-            _client.Dispose();
-            _client = null;
-        }
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+        return req;
     }
+
+    // ── Inbox Polling ─────────────────────────────────────────────
 
     private async Task PollInboxAsync(CancellationToken ct)
     {
-        try
-        {
-            await _client!.Inbox.OpenAsync(FolderAccess.ReadWrite, ct);
+        var url = $"https://gmail.googleapis.com/gmail/v1/users/{_userEmail}/messages?q=is:unread+in:inbox&maxResults=20";
+        var resp = await _http.SendAsync(GmailRequest(url), ct);
+        resp.EnsureSuccessStatusCode();
 
-            var uids = await _client.Inbox.SearchAsync(SearchQuery.NotSeen, ct);
-            if (uids.Count == 0)
-            {
-                _logger.LogDebug("No unread emails found");
-                return;
-            }
+        var json = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
 
-            _logger.LogInformation("Found {Count} unread email(s)", uids.Count);
-
-            foreach (var uid in uids)
-            {
-                try
-                {
-                    await ProcessEmailAsync(uid, ct);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to process email UID={Uid}", uid);
-                }
-            }
-        }
-        catch (AuthenticationException ex)
+        if (!root.TryGetProperty("messages", out var messages) || messages.GetArrayLength() == 0)
         {
-            _logger.LogError(ex, "IMAP authentication failed for user {User}", _imapUser);
-            throw;
-        }
-        catch (ImapProtocolException ex)
-        {
-            _logger.LogError(ex, "IMAP protocol error. Will retry on next cycle.");
-            await DisposeClientAsync();
-        }
-        catch (IOException ex)
-        {
-            _logger.LogError(ex, "IMAP connection error. Will retry on next cycle.");
-            await DisposeClientAsync();
-        }
-    }
-
-    private async Task ProcessEmailAsync(UniqueId uid, CancellationToken ct)
-    {
-        var message = await _client!.Inbox.GetMessageAsync(uid, ct);
-        if (message == null)
-        {
-            _logger.LogWarning("Could not fetch message UID={Uid}", uid);
+            _logger.LogDebug("No unread emails found");
             return;
         }
 
-        var fromAddress = message.From.Mailboxes.FirstOrDefault()?.Address ?? "";
-        var fromName = message.From.Mailboxes.FirstOrDefault()?.Name ?? "";
-        var subject = message.Subject ?? "";
-        var body = GetEmailBody(message);
-        var messageId = message.MessageId ?? Guid.NewGuid().ToString("N");
-        var inReplyTo = message.InReplyTo;
-        var references = string.Join(" ", message.References);
+        _logger.LogInformation("Found {Count} unread email(s)", messages.GetArrayLength());
 
-        _logger.LogInformation("Processing email from {From}: {Subject} (MessageId={MessageId})", fromAddress, subject, messageId);
-
-        var attachments = new List<EmailAttachment>();
-        foreach (var attachment in message.Attachments)
+        foreach (var msgRef in messages.EnumerateArray())
         {
-            var emailAttachment = await ExtractAttachmentAsync(attachment);
-            if (emailAttachment != null)
+            var messageId = msgRef.GetProperty("id").GetString()!;
+            try
             {
-                attachments.Add(emailAttachment);
+                await ProcessMessageAsync(messageId, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process message {MessageId}", messageId);
             }
         }
+    }
 
-        foreach (var related in message.BodyParts.OfType<MimePart>())
+    // ── Single Message Processing ─────────────────────────────────
+
+    private async Task ProcessMessageAsync(string messageId, CancellationToken ct)
+    {
+        // Fetch full message
+        var url = $"https://gmail.googleapis.com/gmail/v1/users/{_userEmail}/messages/{messageId}?format=full";
+        var resp = await _http.SendAsync(GmailRequest(url), ct);
+        resp.EnsureSuccessStatusCode();
+
+        var json = await resp.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var payload = root.GetProperty("payload");
+
+        // ── Extract headers ──
+        string GetHeader(string name)
         {
-            if (related.IsAttachment && !attachments.Any(a => a.FileName == related.FileName))
+            if (!payload.TryGetProperty("headers", out var headers)) return "";
+            foreach (var h in headers.EnumerateArray())
             {
-                var emailAttachment = await ExtractAttachmentAsync(related);
-                if (emailAttachment != null)
+                if (h.TryGetProperty("name", out var nameProp) &&
+                    nameProp.GetString()?.Equals(name, StringComparison.OrdinalIgnoreCase) == true &&
+                    h.TryGetProperty("value", out var valProp))
+                    return valProp.GetString() ?? "";
+            }
+            return "";
+        }
+
+        var fromRaw = GetHeader("From");
+        var subject = GetHeader("Subject");
+        var inReplyTo = GetHeader("In-Reply-To");
+        var references = GetHeader("References");
+        var messageIdHeader = GetHeader("Message-Id");
+        if (string.IsNullOrWhiteSpace(messageIdHeader))
+            messageIdHeader = root.TryGetProperty("threadId", out var tid) ? tid.GetString()! : messageId;
+
+        var fromAddress = ExtractEmail(fromRaw);
+        var fromName = ExtractName(fromRaw);
+
+        _logger.LogInformation("Processing email from {From}: {Subject} (Id={MessageId})",
+            fromAddress, subject, messageIdHeader);
+
+        // ── Extract body ──
+        var body = ExtractBody(payload);
+
+        // ── Extract attachments ──
+        var attachments = new List<EmailAttachment>();
+        var attachmentFetches = new List<(string attId, EmailAttachment att)>();
+        CollectAttachments(payload, attachments, attachmentFetches);
+
+        // ── Fetch attachment data ──
+        foreach (var (attId, att) in attachmentFetches)
+        {
+            try
+            {
+                var attUrl = $"https://gmail.googleapis.com/gmail/v1/users/{_userEmail}/messages/{messageId}/attachments/{attId}";
+                var attResp = await _http.SendAsync(GmailRequest(attUrl), ct);
+                if (attResp.IsSuccessStatusCode)
                 {
-                    attachments.Add(emailAttachment);
+                    var attJson = await attResp.Content.ReadAsStringAsync(ct);
+                    using var attDoc = JsonDocument.Parse(attJson);
+                    var attData = attDoc.RootElement.GetProperty("data").GetString() ?? "";
+                    att.Data = Convert.FromBase64String(attData.Replace('-', '+').Replace('_', '/'));
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch attachment {Name}", att.FileName);
+            }
         }
 
+        // ── Delegate to processing service ──
         using var scope = _scopeFactory.CreateScope();
         var processingService = scope.ServiceProvider.GetRequiredService<IEmailProcessingService>();
 
         try
         {
-            await processingService.ProcessEmailAsync(fromAddress, fromName, subject, body,
-                messageId, inReplyTo, references, attachments, ct);
+            await processingService.ProcessEmailAsync(
+                fromAddress, fromName, subject, body,
+                messageIdHeader,
+                string.IsNullOrWhiteSpace(inReplyTo) ? null : inReplyTo,
+                string.IsNullOrWhiteSpace(references) ? null : references,
+                attachments, ct);
 
-            _client.Inbox.AddFlags(uid, MessageFlags.Seen, true, ct);
-            _logger.LogInformation("Successfully processed email UID={Uid} from {From}", uid, fromAddress);
+            // Mark as read — remove UNREAD label
+            var modUrl = $"https://gmail.googleapis.com/gmail/v1/users/{_userEmail}/messages/{messageId}/modify";
+            var modBody = JsonSerializer.Serialize(new { removeLabelIds = new[] { "UNREAD" } });
+            var modReq = new HttpRequestMessage(HttpMethod.Post, modUrl)
+            {
+                Headers = { Authorization = new AuthenticationHeaderValue("Bearer", _accessToken) },
+                Content = new StringContent(modBody, Encoding.UTF8, "application/json")
+            };
+            await _http.SendAsync(modReq, ct);
+
+            _logger.LogInformation("Successfully processed email from {From}: {Subject}", fromAddress, subject);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process email UID={Uid} from {From}. Keeping as unread for retry.", uid, fromAddress);
+            _logger.LogError(ex, "Failed to process email from {From}. Keeping unread for retry.", fromAddress);
         }
     }
 
-    private static string GetEmailBody(MimeMessage message)
+    // ── Body Extraction ───────────────────────────────────────────
+
+    private static string ExtractBody(JsonElement part)
     {
-        if (message.TextBody != null)
-            return message.TextBody;
-
-        if (message.HtmlBody != null)
-            return StripHtml(message.HtmlBody);
-
-        return message.Body?.ToString() ?? "";
-    }
-
-    private static string StripHtml(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html)) return "";
-        var text = System.Text.RegularExpressions.Regex.Replace(html, @"<[^>]+>", " ");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
-        return text.Trim();
-    }
-
-    private static async Task<EmailAttachment?> ExtractAttachmentAsync(MimeEntity entity)
-    {
-        try
+        // Direct body
+        if (part.TryGetProperty("body", out var body) && body.TryGetProperty("data", out var data))
         {
-            if (entity is MimePart part)
+            var mimeType = part.TryGetProperty("mimeType", out var mt) ? mt.GetString() ?? "" : "";
+            if (mimeType == "text/plain" || mimeType == "text/html")
+                return DecodeBase64Url(data.GetString()!);
+        }
+
+        // Multipart children
+        if (part.TryGetProperty("parts", out var parts))
+        {
+            // Prefer text/plain
+            foreach (var child in parts.EnumerateArray())
             {
-                var fileName = part.FileName ?? $"attachment_{Guid.NewGuid():N}";
-                var contentType = part.ContentType?.MimeType ?? "application/octet-stream";
-
-                if (part.Content == null) return null;
-                using var memoryStream = new MemoryStream();
-                await part.Content.DecodeToAsync(memoryStream);
-                var data = memoryStream.ToArray();
-
-                if (data.Length == 0) return null;
-
-                return new EmailAttachment
-                {
-                    FileName = fileName,
-                    ContentType = contentType,
-                    Data = data
-                };
+                var mime = child.TryGetProperty("mimeType", out var mt) ? mt.GetString() ?? "" : "";
+                if (mime == "text/plain" && child.TryGetProperty("body", out var b) && b.TryGetProperty("data", out var d))
+                    return DecodeBase64Url(d.GetString()!);
             }
-
-            if (entity is MessagePart rfc822)
+            // Fallback to recursion
+            foreach (var child in parts.EnumerateArray())
             {
-                var fileName = rfc822.ContentDisposition?.FileName ?? rfc822.ContentType?.Name ?? "forwarded_email.eml";
-                using var memoryStream = new MemoryStream();
-                await rfc822.WriteToAsync(memoryStream);
-                var data = memoryStream.ToArray();
-
-                return new EmailAttachment
-                {
-                    FileName = fileName,
-                    ContentType = "message/rfc822",
-                    Data = data
-                };
+                var result = ExtractBody(child);
+                if (!string.IsNullOrEmpty(result))
+                    return result;
             }
         }
-        catch (Exception ex)
+
+        return "";
+    }
+
+    // ── Attachment Extraction ─────────────────────────────────────
+
+    private static void CollectAttachments(JsonElement part,
+        List<EmailAttachment> attachments, List<(string attId, EmailAttachment att)> toFetch)
+    {
+        if (part.TryGetProperty("body", out var body) &&
+            body.TryGetProperty("attachmentId", out var attIdProp))
         {
-            Console.Error.WriteLine($"Failed to extract attachment: {ex.Message}");
+            var attId = attIdProp.GetString()!;
+            var fileName = part.TryGetProperty("filename", out var fn) ? fn.GetString() ?? "attachment" : "attachment";
+            var mimeType = part.TryGetProperty("mimeType", out var mt) ? mt.GetString() ?? "application/octet-stream" : "application/octet-stream";
+
+            if (!string.IsNullOrEmpty(fileName) && fileName != "attachment")
+            {
+                var att = new EmailAttachment
+                {
+                    FileName = fileName,
+                    ContentType = mimeType,
+                    Data = Array.Empty<byte>()
+                };
+                attachments.Add(att);
+                toFetch.Add((attId, att));
+            }
         }
 
-        return null;
+        if (part.TryGetProperty("parts", out var parts))
+        {
+            foreach (var child in parts.EnumerateArray())
+            {
+                CollectAttachments(child, attachments, toFetch);
+            }
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+
+    private static string ExtractEmail(string fromRaw)
+    {
+        var lt = fromRaw.IndexOf('<');
+        var gt = fromRaw.IndexOf('>');
+        if (lt >= 0 && gt > lt)
+            return fromRaw.Substring(lt + 1, gt - lt - 1).Trim();
+        return fromRaw.Trim();
+    }
+
+    private static string ExtractName(string fromRaw)
+    {
+        var lt = fromRaw.IndexOf('<');
+        if (lt > 0)
+            return fromRaw.Substring(0, lt).Trim().Trim('"');
+        return "";
+    }
+
+    private static string DecodeBase64Url(string data)
+    {
+        var padded = data.Replace('-', '+').Replace('_', '/');
+        switch (padded.Length % 4)
+        {
+            case 2: padded += "=="; break;
+            case 3: padded += "="; break;
+        }
+        try { return Encoding.UTF8.GetString(Convert.FromBase64String(padded)); }
+        catch { return ""; }
     }
 }
