@@ -201,11 +201,19 @@ public class SlaService : ISlaService
 
         string? remainingTime;
         int remainingPercent;
+        string? overdueTime = null;
 
-        if (sla.Status == SlaStatus.Completed || sla.Status == SlaStatus.Breached || sla.Status == SlaStatus.Reopened)
+        if (sla.Status == SlaStatus.Completed || sla.Status == SlaStatus.Reopened)
         {
             remainingTime = "0h 0m";
             remainingPercent = 0;
+        }
+        else if (sla.Status == SlaStatus.Breached)
+        {
+            remainingTime = "0h 0m";
+            remainingPercent = 0;
+            var overdueSpan = DateTime.UtcNow - sla.DeadlineAt;
+            overdueTime = FormatTimeSpan(overdueSpan);
         }
         else
         {
@@ -235,7 +243,8 @@ public class SlaService : ISlaService
             CompletedAt = sla.CompletedAt?.ToString("o"),
             BreachedAt = sla.BreachedAt?.ToString("o"),
             RemainingTime = remainingTime,
-            RemainingPercent = remainingPercent
+            RemainingPercent = remainingPercent,
+            OverdueTime = overdueTime
         };
     }
 
@@ -555,9 +564,12 @@ public class SlaService : ISlaService
     private static string FormatTimeSpan(TimeSpan ts)
     {
         if (ts.TotalHours < 0) return "0h 0m";
-        var totalHours = (int)ts.TotalHours;
+        var totalDays = (int)ts.TotalDays;
+        var hours = ts.Hours;
         var minutes = ts.Minutes;
-        return $"{totalHours}h {minutes}m";
+        if (totalDays > 0)
+            return $"{totalDays}d {hours}h {minutes}m";
+        return $"{hours}h {minutes}m";
     }
 
     private static string EscalatePriority(string currentPriority)

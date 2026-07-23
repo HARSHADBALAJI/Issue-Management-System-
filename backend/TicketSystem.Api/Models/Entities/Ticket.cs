@@ -27,4 +27,5 @@ public class Ticket
     public ICollection<TicketCorrectiveAction> CorrectiveActions { get; set; } = new List<TicketCorrectiveAction>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<EmailMessage> EmailMessages { get; set; } = new List<EmailMessage>();
+    public ICollection<TicketSla> TicketSlas { get; set; } = new List<TicketSla>();
 }

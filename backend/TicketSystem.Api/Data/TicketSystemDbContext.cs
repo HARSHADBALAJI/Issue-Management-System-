@@ -31,6 +31,7 @@ public class TicketSystemDbContext : DbContext
     public DbSet<SlaPolicy> SlaPolicies => Set<SlaPolicy>();
     public DbSet<TicketSla> TicketSlas => Set<TicketSla>();
     public DbSet<SlaAuditLog> SlaAuditLogs => Set<SlaAuditLog>();
+    public DbSet<TicketAccessToken> TicketAccessTokens => Set<TicketAccessToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

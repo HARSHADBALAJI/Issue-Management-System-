@@ -87,6 +87,7 @@ builder.Services.AddScoped<IEmailProcessingService, EmailProcessingService>();
 builder.Services.AddHostedService<AutoCloseService>();
 builder.Services.AddHostedService<EmailReceiverService>();
 builder.Services.AddScoped<ISlaService, SlaService>();
+builder.Services.AddScoped<ITrackingService, TrackingService>();
 builder.Services.AddScoped<SlaCalculationEngine>();
 builder.Services.AddHostedService<SlaBackgroundService>();
 

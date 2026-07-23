@@ -48,7 +48,7 @@ public class NotificationService : INotificationService
                 notification.Message,
                 notification.Type,
                 notification.TicketId,
-                CreatedDate = DateTime.UtcNow
+                notification.CreatedAt
             });
         }
         catch

@@ -20,42 +20,56 @@ import { applicationService } from './services/applicationService'
 import { notificationService } from './services/notificationService'
 import { startConnection, stopConnection, joinUserGroup, onEvent, offEvent } from './services/signalRService'
 import LoginPage from './components/LoginPage'
+import TrackingPage from './components/TrackingPage'
 import './App.css'
 
 function normalizeTicket(t) {
   const statusMap = { 'Open': 'open', 'In Progress': 'in_progress', 'Waiting': 'waiting', 'Resolved': 'resolved', 'Closed': 'closed' }
   const status = statusMap[t.statusName] || (t.statusName || '').toLowerCase().replace(/\s+/g, '_')
   let sla = ''
-  if (t.slaDeadline) {
-    const deadline = new Date(t.slaDeadline)
+  // Use API-provided SLA fields (PascalCase from DTO)
+  const slaDeadline = t.SlaDeadline || t.slaDeadline
+  const isSlaBreached = t.IsSlaBreached || t.isSlaBreached || false
+  const slaStatus = t.SlaStatus || t.slaStatus
+  const slaRemainingPercent = t.SlaRemainingPercent || t.slaRemainingPercent || 0
+  const slaRemainingTime = t.SlaRemainingTime || t.slaRemainingTime
+
+  if (slaRemainingTime && slaRemainingTime !== 'Completed') {
+    sla = slaRemainingTime
+  } else if (slaDeadline) {
+    const deadline = new Date(slaDeadline)
     const now = new Date()
     const diff = deadline - now
     if (diff < 0) {
-      sla = `Overdue by ${Math.ceil(Math.abs(diff) / 3600000)}h`
+      const totalH = Math.floor(Math.abs(diff) / 3600000)
+      const d = Math.floor(totalH / 24)
+      const h = totalH % 24
+      sla = d > 0 ? `Overdue by ${d}d ${h}h` : `Overdue by ${h}h`
     } else {
-      const h = Math.floor(diff / 3600000)
-      const m = Math.floor((diff % 3600000) / 60000)
-      sla = `${h}h ${m}m left`
+const totalH = Math.floor(diff / 3600000)
+      const d = Math.floor(totalH / 24)
+      const h = totalH % 24
+      sla = d > 0 ? `${d}d ${h}h left` : `${h}h ${Math.floor((diff % 3600000) / 60000)}m left`
     }
   }
   return {
-    id: t.ticketNumber || `TICK-${t.id}`,
+    id: t.ticketNumber || t.TicketNumber || `TICK-${t.id}`,
     ticketId: t.id,
-    subject: t.subject || '',
-    description: t.description || '',
+    subject: t.subject || t.Subject || '',
+    description: t.description || t.Description || '',
     status,
-    statusName: t.statusName || status,
-    application: t.applicationName || '',
-    applicationId: t.applicationId,
-    raisedBy: t.requesterName || '',
-    assignedTo: t.assignedToName || '',
+    statusName: t.statusName || t.StatusName || status,
+    application: t.applicationName || t.ApplicationName || '',
+    applicationId: t.applicationId || t.ApplicationId,
+    raisedBy: t.requesterName || t.RequesterName || '',
+    assignedTo: t.assignedToName || t.AssignedToName || '',
     sla,
-    isSlaBreached: t.isSlaBreached || false,
-    slaDeadline: t.slaDeadline ? new Date(t.slaDeadline) : null,
-    updated: t.updatedAt ? new Date(t.updatedAt) : new Date(),
-    created: t.createdAt ? new Date(t.createdAt) : new Date(),
-    priority: t.priority || '',
-    statusId: t.statusId,
+    isSlaBreached: isSlaBreached,
+    slaDeadline: slaDeadline ? new Date(slaDeadline) : null,
+    updated: t.updatedAt ? new Date(t.updatedAt) : (t.UpdatedAt ? new Date(t.UpdatedAt) : new Date()),
+    created: t.createdAt ? new Date(t.createdAt) : (t.CreatedAt ? new Date(t.CreatedAt) : new Date()),
+    priority: t.priority || t.Priority || '',
+    statusId: t.statusId || t.StatusId,
   }
 }
 
@@ -88,8 +102,15 @@ function useAsync(fn, deps) {
 }
 
 export default function App() {
-  const { user, loading: authLoading, logout } = useAuth()
-  const [currentPage, setCurrentPage] = useState('tickets')
+  const { user, loading: authLoading, logout, isAdmin } = useAuth()
+
+  const trackMatch = window.location.pathname.match(/^\/track\/(\d+)/)
+  const trackToken = new URLSearchParams(window.location.search).get('token')
+  if (trackMatch && trackToken) {
+    return <TrackingPage ticketId={trackMatch[1]} token={trackToken} />
+  }
+
+  const [currentPage, setCurrentPage] = useState(isAdmin ? 'tickets' : 'dashboard')
   const [activeTab, setActiveTab] = useState('all')
   const [filters, setFilters] = useState({ search: '', status: 'all', app: 'all', from: '', to: '' })
   const [page, setPage] = useState(1)
@@ -108,11 +129,13 @@ export default function App() {
 
   useEffect(() => {
     if (notifRes.data) {
-      const n = Array.isArray(notifRes.data) ? notifRes.data : []
-      setNotifications(n.map(item => ({
+      const items = Array.isArray(notifRes.data) ? notifRes.data : []
+      setNotifications(items.map(item => ({
+        id: item.id,
         title: item.title || '',
         message: item.message || item.body || '',
-        time: item.createdDate ? timeSince(new Date(item.createdDate)) : '',
+        time: item.createdAt ? timeSince(new Date(item.createdAt)) : '',
+        isRead: item.isRead || false,
       })))
     }
   }, [notifRes.data])
@@ -136,20 +159,29 @@ export default function App() {
     })
     onEvent('NotificationReceived', (notification) => {
       setNotifications(prev => [{
+        id: notification.id,
         title: notification.title || '',
         message: notification.message || notification.body || '',
         time: timeSince(new Date()),
+        isRead: false,
       }, ...prev])
     })
 
     const pollInterval = setInterval(() => {
       notificationService.getAll().then(r => {
         if (r && r.items) {
-          setNotifications(r.items.map(n => ({
-            title: n.title || '',
-            message: n.message || n.body || '',
-            time: n.createdDate ? timeSince(new Date(n.createdDate)) : '',
-          })))
+          setNotifications(prev => {
+            const existing = new Map(prev.map(n => [n.id, n]))
+            const fresh = r.items.map(n => ({
+              id: n.id,
+              title: n.title || '',
+              message: n.message || n.body || '',
+              time: n.createdAt ? timeSince(new Date(n.createdAt)) : '',
+              isRead: n.isRead || false,
+            }))
+            fresh.forEach(n => existing.set(n.id, n))
+            return Array.from(existing.values())
+          })
         }
       }).catch(() => {})
     }, 20000)
@@ -164,12 +196,18 @@ export default function App() {
   }, [user])
 
   function addNotification(title, message) {
-    setNotifications(prev => [{ title, message, time: timeSince(new Date()) }, ...prev])
+    setNotifications(prev => [{ id: null, title, message, time: timeSince(new Date()), isRead: false }, ...prev])
   }
 
   function clearNotification(idx) {
-    setNotifications(prev => prev.filter((_, i) => i !== idx))
+    setNotifications(prev => {
+      const n = prev[idx]
+      if (n?.id) notificationService.markRead(n.id).catch(() => {})
+      return prev.filter((_, i) => i !== idx)
+    })
   }
+
+  const unreadCount = notifications.filter(n => !n.isRead).length
 
   function timeSince(d) {
     const s = Math.round((Date.now() - d.getTime()) / 1000)
@@ -217,13 +255,19 @@ export default function App() {
   if (authLoading) return <div className="page-loading"><i className="fas fa-spinner fa-spin" /> Loading...</div>
   if (!user) return <LoginPage />
 
+  const adminOnlyPages = ['users', 'departments', 'applications', 'sla-settings']
+  if (!isAdmin && adminOnlyPages.includes(currentPage)) {
+    setCurrentPage('dashboard')
+    return <div className="page-loading"><i className="fas fa-spinner fa-spin" /> Redirecting...</div>
+  }
+
   const initialLoading = ticketsRes.loading && !ticketsRes.data
 
   return (
     <div className="app">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <div className="main">
-        <TopNav notifications={notifications} onClearNotification={clearNotification} onLogout={logout} user={user} />
+        <TopNav notifications={notifications} unreadCount={unreadCount} onClearNotification={clearNotification} onLogout={logout} user={user} />
         <main className="content">
           {initialLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', color: 'var(--text-muted)' }}>
@@ -232,12 +276,12 @@ export default function App() {
           ) : (
             <>
               {currentPage === 'dashboard' && (
-                <Dashboard tickets={tickets} users={usersList} applications={appList} />
+                <Dashboard isAdmin={isAdmin} />
               )}
               {currentPage === 'tickets' && (
                 <>
                   <div className="page-heading">
-                    <h1>Tickets</h1>
+                    <h1>{isAdmin ? 'Tickets' : 'My Tickets'}</h1>
                   </div>
                   <KPICards tickets={tickets} />
                   <StatusTabs tickets={tickets} activeTab={activeTab} onTabChange={handleTabChange} />
@@ -245,19 +289,19 @@ export default function App() {
                   <TicketTable tickets={filtered} page={page} selected={selected} onSelectAll={handleSelectAll} onSelectOne={handleSelectOne} onPageChange={setPage} onViewTicket={t => { setViewingTicketId(t.ticketId); setCurrentPage('ticket-detail') }} onUpdate={() => ticketsRes.refetch()} usersList={usersList} />
                 </>
               )}
-              {currentPage === 'sla-settings' && (
+              {currentPage === 'sla-settings' && isAdmin && (
                 <SlaSettings />
               )}
               {currentPage === 'ticket-detail' && viewingTicketId && (
-                <TicketDetail ticketId={viewingTicketId} onBack={() => { setViewingTicketId(null); setCurrentPage('tickets') }} onUpdate={() => ticketsRes.refetch()} usersList={usersList} />
+                <TicketDetail ticketId={viewingTicketId} onBack={() => { setViewingTicketId(null); setCurrentPage('tickets') }} onUpdate={() => ticketsRes.refetch()} usersList={usersList} isAdmin={isAdmin} />
               )}
-              {currentPage === 'users' && (
+              {currentPage === 'users' && isAdmin && (
                 <UsersPage users={usersList} allApps={appList} departments={deptList} onNotify={addNotification} onRefresh={async () => { await usersRes.refetch(); await appsRes.refetch() }} />
               )}
-              {currentPage === 'departments' && (
+              {currentPage === 'departments' && isAdmin && (
                 <DepartmentsPage departments={deptList} onNotify={addNotification} onRefresh={async () => deptsRes.refetch()} />
               )}
-              {currentPage === 'applications' && (
+              {currentPage === 'applications' && isAdmin && (
                 <ApplicationsPage applications={appList} users={usersList} onNotify={addNotification} onRefresh={async () => { await appsRes.refetch(); await usersRes.refetch() }} onSilentRefresh={async () => { await appsRes.silentRefetch(); await usersRes.silentRefetch() }} onUpdateApps={(updater) => appsRes.setData(updater)} normalizeApp={normalizeApp} />
               )}
             </>

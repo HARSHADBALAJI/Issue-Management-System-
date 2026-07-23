@@ -69,6 +69,7 @@ public class TicketSlaInfoDto
     public string? BreachedAt { get; set; }
     public string? RemainingTime { get; set; }
     public int RemainingPercent { get; set; }
+    public string? OverdueTime { get; set; }
 }
 
 public class SlaAuditEntryDto

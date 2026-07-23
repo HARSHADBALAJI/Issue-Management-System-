@@ -339,6 +339,17 @@ public partial class EmailProcessingService : IEmailProcessingService
         _context.TicketStatusHistories.Add(statusHistory);
         await _context.SaveChangesAsync(ct);
 
+        // 13b. Start SLA for the new ticket
+        try
+        {
+            await _slaService.StartSlaAsync(ticket.Id, ticket.Priority);
+            _logger.LogInformation("SLA started for ticket {TicketNumber} with priority {Priority}", ticketNumber, ticket.Priority);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start SLA for ticket {TicketNumber}", ticketNumber);
+        }
+
         // 14. Notify SPOC
         if (spocUserId.HasValue)
         {
@@ -674,6 +685,28 @@ public partial class EmailProcessingService : IEmailProcessingService
         // Resume SLA on email reply
         await _slaService.ResumeSlaAsync(ticket.Id);
 
+        // Auto-transition from Waiting to In Progress when a reply is added
+        if (ticket.StatusId == 2) // Waiting
+        {
+            ticket.StatusId = 1; // In Progress
+            ticket.UpdatedAt = DateTime.UtcNow;
+            _context.Tickets.Update(ticket);
+            await _context.SaveChangesAsync(ct);
+
+            // Add status history
+            var history = new TicketStatusHistory
+            {
+                TicketId = ticket.Id,
+                FromStatusId = 2,
+                ToStatusId = 1,
+                ChangedByRequesterId = requester?.Id,
+                Remarks = "Auto-transitioned from Waiting to In Progress on email reply",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.TicketStatusHistories.Add(history);
+            await _context.SaveChangesAsync(ct);
+        }
+
         // Notify assigned SPOC
         if (ticket.AssignedToUserId.HasValue)
         {
@@ -803,10 +836,19 @@ public partial class EmailProcessingService : IEmailProcessingService
 
     private async Task<int> GetNextSequenceAsync(CancellationToken ct)
     {
-        var raw = await _context.Database
-            .SqlQueryRaw<long>("SELECT NEXT VALUE FOR TicketSequence AS Value")
+        var maxTicketNumbers = await _context.Tickets
+            .Where(t => t.TicketNumber.StartsWith("TKT-"))
+            .Select(t => t.TicketNumber)
             .ToListAsync(ct);
-        return (int)raw.FirstOrDefault();
+
+        var maxNum = 0;
+        foreach (var tn in maxTicketNumbers)
+        {
+            if (int.TryParse(tn.AsSpan(4), out var num) && num > maxNum)
+                maxNum = num;
+        }
+
+        return maxNum + 1;
     }
 
     private async Task<int> GetUnknownApplicationIdAsync(CancellationToken ct)

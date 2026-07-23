@@ -98,7 +98,7 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) {
+export default function TicketDetail({ ticketId, onBack, onUpdate, usersList, isAdmin }) {
   const [ticket, setTicket] = useState(null)
   const [ticketError, setTicketError] = useState(null)
   const [slaInfo, setSlaInfo] = useState(null)
@@ -135,16 +135,25 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
     }
     try {
       const sla = await slaService.getTicketSla(ticketId)
-      if (sla) {
+      if (sla && sla.status) {
         const deadline = sla.deadlineAt ? new Date(sla.deadlineAt) : null
+        const startedAt = sla.startedAt ? new Date(sla.startedAt) : null
         setSlaInfo({
-          consumed: sla.remainingTime || 'N/A',
+          remainingTime: sla.remainingTime || '0h 0m',
           pct: sla.remainingPercent || 0,
-          breached: !!sla.breachedAt,
+          breached: sla.status === 'Breached',
+          completed: sla.status === 'Completed',
+          paused: sla.status === 'Paused',
+          running: sla.status === 'Running',
           deadline,
+          startedAt,
           status: sla.status,
-          priority: sla.priority,
+          priority: sla.priority || '',
+          overdueTime: sla.overdueTime || null,
+          pausedDuration: sla.pausedDuration || null,
         })
+      } else {
+        setSlaInfo(null)
       }
     } catch {}
     setSlaLoading(false)
@@ -470,6 +479,10 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
                   ))}
                 </select>
               </div>
+              <div className="td-side-row"><label>Application</label><span>{ticket.application}</span></div>
+              <div className="td-side-row"><label>Raised By</label><span>{ticket.raisedBy}</span></div>
+              {isAdmin && (
+              <>
               <div className="td-side-row">
                 <label>SPOC</label>
                 <div className="td-side-spoc-row">
@@ -484,8 +497,6 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
                   />
                 </div>
               </div>
-              <div className="td-side-row"><label>Application</label><span>{ticket.application}</span></div>
-              <div className="td-side-row"><label>Raised By</label><span>{ticket.raisedBy}</span></div>
               <div className="td-side-row">
                 <label>Corrective Actions Taken</label>
                 {ticket.correctiveActions && ticket.correctiveActions.length > 0 && (
@@ -506,24 +517,58 @@ export default function TicketDetail({ ticketId, onBack, onUpdate, usersList }) 
                   <div style={{ color: 'var(--text-muted)', fontSize: '.82rem', padding: '4px 0' }}>No corrective actions recorded.</div>
                 )}
               </div>
+              </>
+              )}
             </div>
           </div>
 
           <div className="td-side-section">
-            <div className="td-side-hdr"><i className="fas fa-clock" style={{ color: slaInfo?.breached ? '#EF4444' : '#10B981', marginRight: 4 }} /> SLA Tracking</div>
+            <div className="td-side-hdr"><i className="fas fa-clock" style={{ color: slaInfo?.breached ? '#EF4444' : slaInfo?.completed ? '#10B981' : slaInfo?.paused ? '#F59E0B' : '#3B82F6', marginRight: 4 }} /> SLA Tracking</div>
             <div className="td-side-body">
               {slaLoading ? (
                 <div style={{ color: 'var(--text-muted)', fontSize: '.85rem', padding: '8px 0' }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 6 }} />Loading SLA...</div>
               ) : slaInfo ? (
                 <>
-                  {slaInfo?.breached ? (
-                    <div className="td-side-sla-banner"><i className="fas fa-exclamation-triangle" /> SLA Breached — OVERDUE by {slaInfo?.consumed}</div>
+                  <div className="td-side-sla-row"><span className="td-side-sla-label">Status</span>
+                    <span className="td-side-sla-val" style={{
+                      color: slaInfo.breached ? '#EF4444' : slaInfo.completed ? '#10B981' : slaInfo.paused ? '#F59E0B' : '#3B82F6',
+                      fontWeight: 700
+                    }}>
+                      {slaInfo.status === 'Running' && <><i className="fas fa-play" style={{ fontSize: '.55rem', marginRight: 3 }} />Running</>}
+                      {slaInfo.status === 'Paused' && <><i className="fas fa-pause" style={{ fontSize: '.55rem', marginRight: 3 }} />Paused</>}
+                      {slaInfo.status === 'Breached' && <><i className="fas fa-exclamation-triangle" style={{ fontSize: '.55rem', marginRight: 3 }} />Breached</>}
+                      {slaInfo.status === 'Completed' && <><i className="fas fa-check-circle" style={{ fontSize: '.55rem', marginRight: 3 }} />Completed</>}
+                    </span>
+                  </div>
+                  <div className="td-side-sla-row"><span className="td-side-sla-label">Priority</span>
+                    <span className="td-side-sla-val" style={{
+                      color: slaInfo.priority === 'critical' ? '#DC2626' : slaInfo.priority === 'high' ? '#F97316' : slaInfo.priority === 'medium' ? '#F59E0B' : '#6B7280',
+                      fontWeight: 700, textTransform: 'capitalize'
+                    }}>{slaInfo.priority}</span>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                  {slaInfo.breached ? (
+                    <div className="td-side-sla-banner"><i className="fas fa-exclamation-triangle" /> SLA Breached — Overdue by {slaInfo.overdueTime || 'N/A'}</div>
+                  ) : slaInfo.paused ? (
+                    <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 10px', fontSize: '.7rem', fontWeight: 600, color: '#92400E', marginBottom: 6 }}>
+                      <i className="fas fa-pause" style={{ marginRight: 4 }} />SLA Paused — {slaInfo.pausedDuration ? `Paused for ${slaInfo.pausedDuration}` : 'Awaiting info'}
+                    </div>
+                  ) : slaInfo.completed ? (
+                    <div style={{ background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 5, padding: '5px 10px', fontSize: '.7rem', fontWeight: 600, color: '#065F46', marginBottom: 6 }}>
+                      <i className="fas fa-check-circle" style={{ marginRight: 4 }} />SLA Completed
+                    </div>
                   ) : (
-                    <div className="td-side-sla-row"><span className="td-side-sla-label">Time Left</span><span className="td-side-sla-val" style={{ color: (slaInfo?.pct || 0) < 20 ? '#F59E0B' : '#10B981', fontWeight: 700 }}>{slaInfo?.consumed}</span></div>
+                    <div className="td-side-sla-row"><span className="td-side-sla-label">Time Left</span><span className="td-side-sla-val" style={{ color: (slaInfo.pct || 0) < 20 ? '#EF4444' : (slaInfo.pct || 0) < 50 ? '#F59E0B' : '#10B981', fontWeight: 700 }}>{slaInfo.remainingTime}</span></div>
                   )}
-                  <div className="td-side-sla-bar"><div className="td-side-sla-fill" style={{ width: `${Math.min(100, slaInfo?.pct || 0)}%`, background: slaInfo?.breached ? '#EF4444' : (slaInfo?.pct || 0) > 80 ? '#10B981' : (slaInfo?.pct || 0) > 20 ? '#F59E0B' : '#EF4444' }} /></div>
-                  <div className="td-side-sla-row"><span className="td-side-sla-label">Remaining</span><span className="td-side-sla-val" style={{ color: slaInfo?.breached ? '#EF4444' : '#10B981', fontWeight: 700 }}>{slaInfo?.pct}%</span></div>
-                  <div className="td-side-sla-row"><span className="td-side-sla-label">Deadline</span><span className="td-side-sla-val">{formatDate(slaInfo?.deadline)}</span></div>
+                  {!slaInfo.breached && !slaInfo.completed && (
+                    <>
+                      <div className="td-side-sla-bar"><div className="td-side-sla-fill" style={{ width: `${Math.min(100, slaInfo.pct || 0)}%`, background: (slaInfo.pct || 0) > 50 ? '#10B981' : (slaInfo.pct || 0) > 20 ? '#F59E0B' : '#EF4444' }} /></div>
+                      <div className="td-side-sla-row"><span className="td-side-sla-label">Remaining</span><span className="td-side-sla-val" style={{ color: (slaInfo.pct || 0) < 20 ? '#EF4444' : '#10B981', fontWeight: 700 }}>{slaInfo.pct}%</span></div>
+                    </>
+                  )}
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                  {slaInfo.startedAt && <div className="td-side-sla-row"><span className="td-side-sla-label">Started</span><span className="td-side-sla-val">{formatDate(slaInfo.startedAt)}</span></div>}
+                  <div className="td-side-sla-row"><span className="td-side-sla-label">Deadline</span><span className="td-side-sla-val">{formatDate(slaInfo.deadline)}</span></div>
                 </>
               ) : (
                 <div style={{ color: 'var(--text-muted)', fontSize: '.85rem', padding: '8px 0' }}>No SLA data available</div>

@@ -1,31 +1,21 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { dashboardService } from '../services/dashboardService'
 
-function sameDay(a, b) {
-  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
-}
-
-function formatResolution(hours) {
-  if (!hours && hours !== 0) return '-'
-  const d = Math.floor(hours / 24)
-  const h = Math.round(hours % 24)
-  if (d > 0) return `${d}d ${h}h`
-  return `${h}h`
-}
-
 const PRIORITY_COLORS = { critical: '#DC2626', high: '#EA580C', medium: '#D97706', low: '#2563EB', informational: '#64748B' }
 const PRIORITY_LABELS = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', informational: 'Informational' }
 
 const KPI_CONFIG = [
   { key: 'total', label: 'Total Tickets', icon: 'fa-ticket', color: '#2563EB', bg: '#EFF6FF' },
   { key: 'open', label: 'Open', icon: 'fa-envelope-open', color: '#0D6EFD', bg: '#E3F2FD' },
-  { key: 'in_progress', label: 'In Progress', icon: 'fa-spinner', color: '#FFC107', bg: '#FFF8E1' },
+  { key: 'inProgress', label: 'In Progress', icon: 'fa-spinner', color: '#FFC107', bg: '#FFF8E1' },
   { key: 'waiting', label: 'Waiting', icon: 'fa-clock', color: '#FD7E14', bg: '#FFF3E0' },
   { key: 'resolved', label: 'Resolved', icon: 'fa-check-circle', color: '#198754', bg: '#D4EDDA' },
   { key: 'closed', label: 'Closed', icon: 'fa-circle-check', color: '#6C757D', bg: '#E9ECEF' },
 ]
 
-const FILTER_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Custom Range']
+const FILTER_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month']
+
+const C_ = 2 * Math.PI * 80
 
 function buildSmoothPath(points) {
   if (points.length < 2) return ''
@@ -40,7 +30,15 @@ function buildSmoothPath(points) {
   return d
 }
 
-const C_ = 2 * Math.PI * 80
+function EmptyState({ icon, title, description }) {
+  return (
+    <div className="dash-empty">
+      <div className="dash-empty-icon"><i className={`fas ${icon}`} /></div>
+      <div className="dash-empty-title">{title}</div>
+      <div className="dash-empty-desc">{description}</div>
+    </div>
+  )
+}
 
 function SectionHeader({ number, title }) {
   return (
@@ -51,312 +49,267 @@ function SectionHeader({ number, title }) {
   )
 }
 
-function SectionFilter({ open, filters, onChange, onClose, dateLabel }) {
-  if (!open) return null
-  return (
-    <div className="dash-sfilter-overlay" onClick={onClose}>
-      <div className="dash-sfilter-panel" onClick={e => e.stopPropagation()}>
-        <div className="dash-sfilter-date">{dateLabel}</div>
-        <div className="dash-sfilter-row">
-          <label>Status</label>
-            <select value={filters.status} onChange={e => onChange({ ...filters, status: e.target.value })}>
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="waiting">Waiting</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-        </div>
-        <div className="dash-sfilter-row">
-          <label>Priority</label>
-          <select value={filters.priority} onChange={e => onChange({ ...filters, priority: e.target.value })}>
-            <option value="">All</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-        </div>
-        <div className="dash-sfilter-actions">
-          <button className="dash-sfilter-btn" onClick={() => { onChange({ status: '', priority: '' }); onClose() }}>Reset</button>
-          <button className="dash-sfilter-btn dash-sfilter-btn-primary" onClick={onClose}>Apply</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function Dashboard({ tickets, users, applications }) {
+export default function Dashboard({ isAdmin }) {
   const [datePreset, setDatePreset] = useState('Last 30 Days')
-  const [customFrom, setCustomFrom] = useState('')
-  const [customTo, setCustomTo] = useState('')
-  const [filterApp, setFilterApp] = useState('')
-  const [filterDept, setFilterDept] = useState('')
-  const [filterUser, setFilterUser] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [sfOpen, setSfOpen] = useState(false)
-  const [sfFilters, setSfFilters] = useState({ status: '', priority: '' })
-  const [kmFilterOpen, setKmFilterOpen] = useState(false)
-  const [tooltip, setTooltip] = useState(null)
-  const chartRef = useRef(null)
-  const TOOLTIP_LABELS = { created: 'Created', resolved: 'Resolved', slaBreached: 'SLA Breached', reopened: 'Reopened' }
-
   const [stats, setStats] = useState(null)
   const [agentData, setAgentData] = useState([])
-  const [slaData, setSlaData] = useState(null)
-  const [trendData, setTrendData] = useState([])
-
-  useEffect(() => {
-    dashboardService.getStats().then(r => setStats(r)).catch(() => {})
-    dashboardService.getAgentPerformance().then(r => setAgentData(r.items || r || [])).catch(() => {})
-    dashboardService.getSla().then(r => {
-      if (Array.isArray(r)) {
-        const breached = r.filter(s => s.percentage < 0).length
-        setSlaData({ breached, withinSLA: r.length - breached, compliancePct: r.length > 0 ? Math.round(((r.length - breached) / r.length) * 100) : 100, avgFormatted: '-' })
-      } else { setSlaData(r) }
-    }).catch(() => {})
-    dashboardService.getTrends().then(r => {
-      if (r?.series && Array.isArray(r.series)) {
-        const created = r.series.find(s => s.key === 'created')?.data || []
-        const resolved = r.series.find(s => s.key === 'resolved')?.data || []
-        setTrendData(created.map((val, i) => ({ created: val, resolved: resolved[i] || 0, slaBreached: 0, reopened: 0 })))
-      } else { setTrendData(r || []) }
-    }).catch(() => {})
-  }, [])
-
-  const filterOptions = useMemo(() => {
-    const apps = [...new Set(tickets.map(t => t.application))].sort()
-    const depts = [...new Set(tickets.map(t => t.department))].sort()
-    const usersSet = [...new Set(tickets.map(t => t.assignedTo).filter(Boolean))].sort()
-    return { apps, depts, users: usersSet, statuses: ['open', 'in_progress', 'waiting', 'resolved', 'closed'] }
-  }, [tickets])
+  const [slaData, setSlaData] = useState([])
+  const [trendData, setTrendData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [tooltip, setTooltip] = useState(null)
+  const chartRef = useRef(null)
 
   const dateRange = useMemo(() => {
     const now = new Date()
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-    let start
+    let start, days = 30
     switch (datePreset) {
       case 'Today':
         start = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0)
-        return { from: start, to: end, label: end.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }
+        days = 1
+        break
       case 'Yesterday':
         start = new Date(end); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0)
         end.setDate(end.getDate() - 1)
-        return { from: start, to: end, label: start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }
+        days = 1
+        break
       case 'Last 7 Days':
-        start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0); break
-      case 'Last 30 Days':
-        start = new Date(end); start.setDate(start.getDate() - 29); start.setHours(0, 0, 0, 0); break
+        start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0)
+        days = 7
+        break
       case 'This Month':
-        start = new Date(end.getFullYear(), end.getMonth(), 1, 0, 0, 0, 0); break
-      case 'Custom Range':
-        start = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(0)
-        const custEnd = customTo ? new Date(customTo + 'T23:59:59') : new Date(end)
-        return { from: start, to: custEnd, label: `${start.toLocaleDateString()} — ${custEnd.toLocaleDateString()}` }
+        start = new Date(end.getFullYear(), end.getMonth(), 1, 0, 0, 0, 0)
+        days = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+        break
       default:
         start = new Date(end); start.setDate(start.getDate() - 29); start.setHours(0, 0, 0, 0)
+        days = 30
     }
-    return { from: start, to: end, label: `${start.toLocaleDateString()} — ${end.toLocaleDateString()}` }
-  }, [datePreset, customFrom, customTo])
+    const label = datePreset === 'Today' || datePreset === 'Yesterday'
+      ? start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    return { from: start, to: end, days, label }
+  }, [datePreset])
 
-  const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
-      if (t.updated < dateRange.from || t.updated > dateRange.to) return false
-      if (filterApp && t.application !== filterApp) return false
-      if (filterDept && t.department !== filterDept) return false
-      if (filterUser && t.assignedTo !== filterUser) return false
-      if (filterStatus && t.status !== filterStatus) return false
-      return true
-    })
-  }, [tickets, dateRange, filterApp, filterDept, filterUser, filterStatus])
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const startDate = dateRange.from.toISOString()
+    const endDate = dateRange.to.toISOString()
 
-  const sectionTickets = useMemo(() => {
-    return filteredTickets.filter(t => {
-      if (sfFilters.status && t.status !== sfFilters.status) return false
-      return true
+    Promise.all([
+      dashboardService.getStats({ startDate, endDate }).catch(() => null),
+      dashboardService.getTrends({ days: dateRange.days }).catch(() => null),
+      dashboardService.getSla().catch(() => null),
+      dashboardService.getAgentPerformance().catch(() => null),
+    ]).then(([statsRes, trendsRes, slaRes, agentRes]) => {
+      if (cancelled) return
+      setStats(statsRes)
+      setTrendData(trendsRes)
+      setSlaData(Array.isArray(slaRes) ? slaRes : slaRes?.value || [])
+      setAgentData(Array.isArray(agentRes) ? agentRes : agentRes?.value || [])
+      setLoading(false)
     })
-  }, [filteredTickets, sfFilters])
+    return () => { cancelled = true }
+  }, [dateRange])
 
   const statusCounts = useMemo(() => {
-    if (stats) return {
+    if (!stats) return {}
+    return {
       total: stats.total || 0,
-      open: (stats.inProgress || 0) + (stats.waiting || 0) + (stats.resolved || 0),
-      in_progress: stats.inProgress || 0,
+      open: stats.open || 0,
+      inProgress: stats.inProgress || 0,
       waiting: stats.waiting || 0,
       resolved: stats.resolved || 0,
       closed: stats.closed || 0,
-      sla_breached: stats.slaBreached || 0,
     }
-    let total = filteredTickets.length, openStatus = 0, in_progress = 0, waiting = 0, resolved = 0, closed = 0
-    filteredTickets.forEach(t => {
-      if (t.status === 'open') openStatus++
-      else if (t.status === 'in_progress') in_progress++
-      else if (t.status === 'waiting') waiting++
-      else if (t.status === 'resolved') resolved++
-      else if (t.status === 'closed') closed++
-    })
-    const open = in_progress + waiting + resolved
-    const slaBreached = filteredTickets.filter(t => t.isSlaBreached || t.sla?.startsWith('Overdue')).length
-    return { total, open, in_progress, waiting, resolved, closed, sla_breached: slaBreached }
-  }, [filteredTickets, stats])
+  }, [stats])
 
   const slaCompliance = useMemo(() => {
-    if (slaData) return slaData
-    const total = filteredTickets.length || 1
-    const breached = filteredTickets.filter(t => t.isSlaBreached || t.sla?.startsWith('Overdue')).length
-    const withinSLA = total - breached
-    const compliancePct = total > 0 ? Math.round((withinSLA / total) * 100) : 100
-    return { breached, withinSLA, compliancePct, avgFormatted: '-' }
-  }, [filteredTickets, slaData])
+    if (stats) {
+      const breached = stats.slaBreached || 0
+      const total = stats.total || 0
+      const compliancePct = total > 0 ? Math.round(((total - breached) / total) * 100) : 100
+      return { breached, compliancePct, avgResolutionTime: stats.avgResolutionTime || '-' }
+    }
+    const total = slaData.length || 1
+    const breached = slaData.filter(s => s.slaStatus === 'Breached').length
+    return { breached, compliancePct: total > 0 ? Math.round(((total - breached) / total) * 100) : 100, avgResolutionTime: '-' }
+  }, [stats, slaData])
 
   const priorityDist = useMemo(() => {
-    const counts = { critical: 0, high: 0, medium: 0, low: 0, informational: 0 }
-    filteredTickets.forEach((t, i) => {
-      const p = t.priority?.toLowerCase() || ['critical', 'high', 'medium', 'low', 'informational'][i % 5]
-      counts[p] = (counts[p] || 0) + 1
-    })
-    return Object.entries(counts).filter(([_, c]) => c > 0).map(([key, count]) => ({
-      key, label: PRIORITY_LABELS[key] || key, color: PRIORITY_COLORS[key] || '#64748B', count,
-      pct: filteredTickets.length > 0 ? ((count / filteredTickets.length) * 100).toFixed(1) : '0',
-    }))
-  }, [filteredTickets])
+    if (stats?.priorityDistribution?.length > 0) {
+      return stats.priorityDistribution.map(p => ({
+        key: p.priority.toLowerCase(),
+        label: PRIORITY_LABELS[p.priority.toLowerCase()] || p.priority,
+        color: PRIORITY_COLORS[p.priority.toLowerCase()] || '#64748B',
+        count: p.count,
+        pct: stats.total > 0 ? ((p.count / stats.total) * 100).toFixed(1) : '0',
+      }))
+    }
+    return []
+  }, [stats])
 
   const donutSegments = useMemo(() => {
+    const total = priorityDist.reduce((s, d) => s + d.count, 0) || 1
     let cumulative = 0
     return priorityDist.map(d => {
-      const dash = (d.count / (filteredTickets.length || 1)) * C_
+      const dash = (d.count / total) * C_
       const seg = { ...d, dash, offset: cumulative }
       cumulative += dash
       return seg
     })
-  }, [priorityDist, filteredTickets.length])
+  }, [priorityDist])
 
-  const agentStats = useMemo(() => {
-    if (agentData.length > 0) return agentData.map(a => ({
-      name: a.agentName || a.name || '',
-      assigned: a.assigned || a.totalAssigned || 0,
-      resolved: a.resolved || a.totalResolved || 0,
-      open: (a.assigned || a.totalAssigned || 0) - (a.resolved || a.totalResolved || 0),
-      avgResolution: formatResolution(a.avgResolutionHours || a.averageResolutionHours || 0),
-      slaPct: (a.slaPercentage || a.slaPct || 0).toString(),
-    }))
-    const agents = {}
-    sectionTickets.forEach(t => {
-      if (!t.assignedTo) return
-      if (!agents[t.assignedTo]) agents[t.assignedTo] = { assigned: 0, resolved: 0, slaOk: 0 }
-      agents[t.assignedTo].assigned++
-      if (t.status === 'resolved' || t.status === 'closed') agents[t.assignedTo].resolved++
-      if (!t.isSlaBreached && !t.sla?.startsWith('Overdue')) agents[t.assignedTo].slaOk++
-    })
-    return Object.entries(agents).map(([name, s]) => ({
-      name, assigned: s.assigned, resolved: s.resolved,
-      open: s.assigned - s.resolved,
-      avgResolution: '-',
-      slaPct: s.assigned > 0 ? ((s.slaOk / s.assigned) * 100).toFixed(1) : '0',
-    }))
-  }, [sectionTickets, agentData])
+  const isSingleDay = dateRange.days <= 1
 
-  const isSingleDay = useMemo(() => sameDay(dateRange.from, dateRange.to), [dateRange])
-
-  const xAxisLabels = useMemo(() => {
-    if (isSingleDay) return [{ index: 0, label: '12 AM' }, { index: 4, label: '04 AM' }, { index: 8, label: '08 AM' }, { index: 12, label: '12 PM' }, { index: 16, label: '04 PM' }, { index: 20, label: '08 PM' }, { index: 23, label: '11 PM' }]
-    const days = Math.ceil((dateRange.to - dateRange.from) / (1000 * 60 * 60 * 24))
-    const numPoints = Math.min(days, 30)
-    if (numPoints <= 7) return Array.from({ length: numPoints }, (_, i) => { const d = new Date(dateRange.from); d.setDate(d.getDate() + i); return { index: i, label: d.toLocaleDateString('en-US', { weekday: 'short' }) } })
-    const labels = []
-    for (let i = 0; i < numPoints; i += 7) { const d = new Date(dateRange.from); d.setDate(d.getDate() + i); labels.push({ index: i, label: d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) }) }
-    if (labels.length > 0 && labels[labels.length - 1].index !== numPoints - 1) { const d = new Date(dateRange.from); d.setDate(d.getDate() + numPoints - 1); labels.push({ index: numPoints - 1, label: d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) }) }
-    return labels
-  }, [isSingleDay, dateRange])
+  const series = [
+    { key: 'created', label: 'Created', color: '#2563EB' },
+    { key: 'resolved', label: 'Resolved', color: '#22C55E' },
+  ]
 
   const trendChartData = useMemo(() => {
     const CHART_LEFT = 48, CHART_RIGHT = 555, CHART_W = CHART_RIGHT - CHART_LEFT, CHART_BOTTOM = 248, CHART_H = 200
-    const series = [{ key: 'created', color: '#2563EB' }, { key: 'resolved', color: '#22C55E' }, { key: 'slaBreached', color: '#EF4444' }, { key: 'reopened', color: '#F59E0B' }]
-    const days = Math.ceil((dateRange.to - dateRange.from) / (1000 * 60 * 60 * 24))
-    const numPoints = Math.min(days, 30)
 
-    if (trendData.length > 0) {
-      const points = trendData.slice(0, numPoints)
-      const maxVal = Math.max(1, ...points.flatMap(d => [d.created || 0, d.resolved || 0, d.slaBreached || d.sla_breached || 0, d.reopened || 0]))
+    if (trendData?.series?.length > 0) {
+      const createdSeries = trendData.series.find(s => s.key === 'created')?.data || []
+      const resolvedSeries = trendData.series.find(s => s.key === 'resolved')?.data || []
+      const numPoints = createdSeries.length
+      if (numPoints === 0) return series.map(s => ({ ...s, points: [] }))
+
+      const points = createdSeries.map((val, i) => ({
+        created: val,
+        resolved: resolvedSeries[i] || 0,
+      }))
+      const maxVal = Math.max(1, ...points.flatMap(d => [d.created, d.resolved]))
+
       return series.map(s => ({
         ...s,
         points: points.map((d, i) => ({
           x: CHART_LEFT + (i / Math.max(numPoints - 1, 1)) * CHART_W,
-          y: CHART_BOTTOM - ((d[s.key === 'slaBreached' ? 'sla_breached' : s.key] || 0) / maxVal) * CHART_H,
+          y: CHART_BOTTOM - ((d[s.key] || 0) / maxVal) * CHART_H,
+          val: d[s.key] || 0,
         })),
       }))
     }
 
-    if (isSingleDay) {
-      return series.map(s => ({
-        ...s,
-        points: Array.from({ length: 24 }, (_, i) => ({
-          x: CHART_LEFT + (i / 23) * CHART_W,
-          y: CHART_BOTTOM - (0.5 / 5) * CHART_H,
-        })),
-      }))
-    }
+    return series.map(s => ({ ...s, points: [] }))
+  }, [trendData])
 
-    const dayData = []
-    for (let i = 0; i < numPoints; i++) {
-      const d = new Date(dateRange.from); d.setDate(d.getDate() + i)
-      const dayTickets = sectionTickets.filter(t => sameDay(t.updated || t.created, d))
-      dayData.push({
-        created: dayTickets.length,
-        resolved: dayTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length,
-        slaBreached: dayTickets.filter(t => t.isSlaBreached).length,
-        reopened: Math.round(dayTickets.length * 0.05),
-      })
-    }
-    const maxVal = Math.max(1, ...dayData.flatMap(d => [d.created, d.resolved, d.slaBreached, d.reopened]))
-    return series.map(s => ({
-      ...s,
-      points: dayData.map((d, i) => ({
-        x: CHART_LEFT + (i / Math.max(numPoints - 1, 1)) * CHART_W,
-        y: CHART_BOTTOM - (d[s.key] / maxVal) * CHART_H,
-      })),
-    }))
-  }, [isSingleDay, dateRange, sectionTickets, trendData])
-
-  const yLabels = useMemo(() => {
-    const series = trendChartData[0]
-    if (!series) return [0, 1, 2, 3, 4]
-    let maxV = 0
-    series.points.forEach(p => { maxV = Math.max(maxV, 248 - p.y) })
-    const m = Math.max(Math.ceil(maxV / 200), 1)
-    return Array.from({ length: m + 1 }, (_, i) => i)
+  const trendMaxVal = useMemo(() => {
+    const first = trendChartData[0]
+    if (!first || first.points.length === 0) return 1
+    return Math.max(1, ...first.points.map(p => p.val || 0))
   }, [trendChartData])
 
-  const handleChartMove = useCallback((e) => {
-    const svg = chartRef.current
+  const xAxisLabels = useMemo(() => {
+    if (!trendData?.labels) return []
+    const labels = trendData.labels
+    const numPoints = labels.length
+    if (numPoints <= 7) {
+      return labels.map((l, i) => ({ index: i, label: l }))
+    }
+    const result = []
+    const step = Math.ceil(numPoints / 7)
+    for (let i = 0; i < numPoints; i += step) {
+      result.push({ index: i, label: labels[i] })
+    }
+    if (result.length === 0 || result[result.length - 1].index !== numPoints - 1) {
+      result.push({ index: numPoints - 1, label: labels[numPoints - 1] })
+    }
+    return result
+  }, [trendData])
+
+  const yLabels = useMemo(() => {
+    const m = Math.max(trendMaxVal, 1)
+    const steps = Math.min(m, 5)
+    return Array.from({ length: steps + 1 }, (_, i) => Math.round((i / steps) * m))
+  }, [trendMaxVal])
+
+  const handleChartHover = useCallback((e, idx) => {
+    const svg = e.currentTarget.closest('svg')
     if (!svg) return
-    const rect = svg.getBoundingClientRect()
-    const vb = { w: 600, h: 300 }
-    const sx = vb.w / rect.width
-    const mx = (e.clientX - rect.left) * sx
-    if (mx < 48 || mx > 555) { setTooltip(null); return }
-    const np = trendChartData[0]?.points.length || 0
-    if (np < 2) return
-    const idx = Math.round((mx - 48) / (555 - 48) * (np - 1))
-    const ci = Math.max(0, Math.min(np - 1, idx))
-    const tl = xAxisLabels.find(l => l.index === ci)?.label || ''
-    const posX = trendChartData[0].points[ci].x
-    const posY = trendChartData[0].points[ci].y - 12
-    const sy = vb.h / rect.height
-    const sx2 = rect.width / vb.w
-    const screenX = posX * sx2
-    const screenY = posY * sy
+    const r = svg.getBoundingClientRect()
+    const labels = trendData?.labels || []
     setTooltip({
-      screenX, screenY, timeLabel: tl,
+      screenX: e.clientX - r.left,
+      screenY: e.clientY - r.top,
+      timeLabel: labels[idx] || '',
       items: trendChartData.map(s => ({
-        label: TOOLTIP_LABELS[s.key], color: s.color,
-        value: Math.round((248 - s.points[ci].y) / 200 * (yLabels[yLabels.length - 1] || 1)),
+        label: s.label,
+        color: s.color,
+        value: s.points[idx]?.val || 0,
       })),
     })
-  }, [trendChartData, xAxisLabels, yLabels])
+  }, [trendChartData, trendData])
 
-  const clearTooltip = useCallback(() => setTooltip(null), [])
+  const agentStats = useMemo(() => {
+    return agentData.map(a => ({
+      name: a.agentName || '',
+      assigned: a.assigned || 0,
+      resolved: a.resolved || 0,
+      open: a.open || 0,
+      slaPct: a.slaPercentage ?? 0,
+      avgResolution: a.avgResolutionTime || '-',
+    }))
+  }, [agentData])
+
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div className="skeleton-card">
+          <div style={{ padding: '12px 14px 14px' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="skeleton skeleton-circle" style={{ width: 20, height: 20 }} />
+              <div className="skeleton skeleton-text" style={{ width: 100, height: 14 }} />
+            </div>
+            <div className="dash-kpi-grid">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="skeleton-kpi">
+                  <div className="skeleton skeleton-circle" />
+                  <div className="skeleton-body">
+                    <div className="skeleton skeleton-text" />
+                    <div className="skeleton skeleton-count" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="skeleton-card">
+          <div style={{ padding: '12px 14px 12px' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="skeleton skeleton-circle" style={{ width: 20, height: 20 }} />
+              <div className="skeleton skeleton-text" style={{ width: 160, height: 14 }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="skeleton" style={{ height: 60, borderRadius: 8 }} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="skeleton-card">
+          <div style={{ padding: '12px 14px 12px' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="skeleton skeleton-circle" style={{ width: 20, height: 20 }} />
+              <div className="skeleton skeleton-text" style={{ width: 200, height: 14 }} />
+            </div>
+            <div className="skeleton" style={{ height: 140, borderRadius: 8 }} />
+          </div>
+        </div>
+        <div className="skeleton-card" style={{ minHeight: 220 }}>
+          <div style={{ padding: '12px 14px 12px' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div className="skeleton skeleton-circle" style={{ width: 20, height: 20 }} />
+              <div className="skeleton skeleton-text" style={{ width: 130, height: 14 }} />
+            </div>
+            <div className="skeleton" style={{ height: 180, borderRadius: 8 }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="dashboard">
@@ -364,59 +317,21 @@ export default function Dashboard({ tickets, users, applications }) {
         <div className="dash-card-header">
           <div className="dash-card-header-row">
             <SectionHeader number="1" title="Key Metrics" />
-            <button className={`dash-funnel-btn${kmFilterOpen ? ' active' : ''}`} title="Global filters" onClick={() => setKmFilterOpen(!kmFilterOpen)}>
-              <i className="fas fa-filter" />
-            </button>
-          </div>
-          {kmFilterOpen && (
-            <div className="dash-kmfilter-panel">
-              <div className="dash-filter-group">
-                <i className="fas fa-calendar-alt" style={{ color: '#6B7280', fontSize: '.82rem' }} />
-                <select className="dash-fselect" value={datePreset} onChange={e => setDatePreset(e.target.value)}>
-                  {FILTER_PRESETS.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                {datePreset === 'Custom Range' && (
-                  <><input type="date" className="dash-finput" value={customFrom} onChange={e => setCustomFrom(e.target.value)} /><span className="dash-fsep">to</span><input type="date" className="dash-finput" value={customTo} onChange={e => setCustomTo(e.target.value)} /></>
-                )}
-              </div>
-              <div className="dash-filter-group">
-                <i className="fas fa-cube" style={{ color: '#6B7280', fontSize: '.82rem' }} />
-                <select className="dash-fselect" value={filterApp} onChange={e => setFilterApp(e.target.value)}>
-                  <option value="">All Apps</option>
-                  {filterOptions.apps.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </div>
-              <div className="dash-filter-group">
-                <i className="fas fa-building" style={{ color: '#6B7280', fontSize: '.82rem' }} />
-                <select className="dash-fselect" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
-                  <option value="">All Depts</option>
-                  {filterOptions.depts.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div className="dash-filter-group">
-                <i className="fas fa-user" style={{ color: '#6B7280', fontSize: '.82rem' }} />
-                <select className="dash-fselect" value={filterUser} onChange={e => setFilterUser(e.target.value)}>
-                  <option value="">All Users</option>
-                  {filterOptions.users.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div className="dash-filter-group">
-                <i className="fas fa-tag" style={{ color: '#6B7280', fontSize: '.82rem' }} />
-                <select className="dash-fselect" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                  <option value="">All Status</option>
-                  <option value="open">Open</option><option value="in_progress">In Progress</option><option value="waiting">Waiting</option><option value="resolved">Resolved</option><option value="closed">Closed</option>
-                </select>
-              </div>
+            <div className="dash-filter-group">
+              <i className="fas fa-calendar-alt" style={{ color: '#6B7280', fontSize: '.82rem' }} />
+              <select className="dash-fselect" value={datePreset} onChange={e => setDatePreset(e.target.value)}>
+                {FILTER_PRESETS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
-          )}
+          </div>
         </div>
-        <div className="dash-kpi-grid" style={{ padding: '12px 16px 16px', marginBottom: 0 }}>
+        <div className="dash-kpi-grid">
           {KPI_CONFIG.map(k => (
             <div key={k.key} className="dash-kpi-card">
               <div className="dash-kpi-icon" style={{ background: k.bg, color: k.color }}><i className={`fas ${k.icon}`} /></div>
               <div className="dash-kpi-body">
                 <div className="dash-kpi-label">{k.label}</div>
-                <div className="dash-kpi-count">{statusCounts[k.key] || 0}</div>
+                <div className="dash-kpi-count">{statusCounts[k.key] ?? 0}</div>
               </div>
             </div>
           ))}
@@ -432,7 +347,7 @@ export default function Dashboard({ tickets, users, applications }) {
           </div>
           <div className="dash-mini-card">
             <div className="dash-mini-icon" style={{ background: '#FEF3C7', color: '#D97706' }}><i className="fas fa-clock" /></div>
-            <div className="dash-mini-body"><div className="dash-mini-label">Avg Resolution Time</div><div className="dash-mini-count">{slaCompliance.avgFormatted || '-'}</div></div>
+            <div className="dash-mini-body"><div className="dash-mini-label">Avg Resolution Time</div><div className="dash-mini-count">{slaCompliance.avgResolutionTime}</div></div>
           </div>
           <div className="dash-mini-card">
             <div className="dash-mini-icon" style={{ background: '#D1FAE5', color: '#10B981' }}><i className="fas fa-shield" /></div>
@@ -442,119 +357,129 @@ export default function Dashboard({ tickets, users, applications }) {
       </div>
 
       <div className="dash-card">
-        <div className="dash-card-header"><SectionHeader number="3" title="Ticket Distribution" /></div>
-        <div className="dash-dist-body">
-          <div className="dash-donut-col">
-            <div className="dash-donut" style={{ width: 140, height: 140 }}>
-              <svg viewBox="0 0 200 200" width="140" height="140">
-                <g transform="rotate(-90 100 100)">
-                  {donutSegments.map((seg, i) => (
-                    <circle key={i} cx="100" cy="100" r="80" fill="none" stroke={seg.color} strokeWidth="22"
-                      strokeDasharray={`${seg.dash} ${C_ - seg.dash}`} strokeDashoffset={-seg.offset} strokeLinecap="butt" />
-                  ))}
-                  <circle cx="100" cy="100" r="52" fill="#fff" />
-                </g>
-              </svg>
-              <div className="dash-donut-center">
-                <div className="dash-donut-total" style={{ fontSize: '1.2rem' }}>{filteredTickets.length}</div>
-                <div className="dash-donut-total-label">TOTAL</div>
+        <div className="dash-card-header"><SectionHeader number="3" title="Ticket Distribution by Priority" /></div>
+        {priorityDist.length === 0 ? (
+          <EmptyState icon="fa-chart-pie" title="No tickets yet" description="Priority distribution will appear once tickets are created." />
+        ) : (
+          <div className="dash-dist-body">
+            <div className="dash-donut-col">
+              <div className="dash-donut">
+                <svg viewBox="0 0 200 200" width="140" height="140">
+                  <g transform="rotate(-90 100 100)">
+                    {donutSegments.map((seg, i) => (
+                      <circle key={i} cx="100" cy="100" r="80" fill="none" stroke={seg.color} strokeWidth="22"
+                        strokeDasharray={`${seg.dash} ${C_ - seg.dash}`} strokeDashoffset={-seg.offset} strokeLinecap="butt" />
+                    ))}
+                    <circle cx="100" cy="100" r="52" fill="#fff" />
+                  </g>
+                </svg>
+                <div className="dash-donut-center">
+                  <div className="dash-donut-total">{stats?.total || 0}</div>
+                  <div className="dash-donut-total-label">TOTAL</div>
+                </div>
               </div>
             </div>
+            <div className="dash-dist-list">
+              {priorityDist.map(d => (
+                <div key={d.key} className="dash-dist-row">
+                  <div className="dash-dist-row-left"><span className="dash-legend-dot" style={{ background: d.color }} /><span className="dash-dist-label">{d.label}</span></div>
+                  <div className="dash-dist-row-right"><span className="dash-dist-count">{d.count}</span><span className="dash-dist-pct">{d.pct}%</span></div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="dash-dist-list">
-            {priorityDist.map(d => (
-              <div key={d.key} className="dash-dist-row">
-                <div className="dash-dist-row-left"><span className="dash-legend-dot" style={{ background: d.color }} /><span className="dash-dist-label">{d.label}</span></div>
-                <div className="dash-dist-row-right"><span className="dash-dist-count">{d.count}</span><span className="dash-dist-pct">{d.pct}%</span></div>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="dash-card dash-card-grow">
-        <div className="dash-card-header">
-          <div className="dash-card-header-row">
-            <SectionHeader number="4" title="Trends &amp; Team Performance" />
-            <button className="dash-funnel-btn" title="Section filters" onClick={() => setSfOpen(true)}><i className="fas fa-filter" /></button>
-          </div>
-        </div>
-        <div className="dash-chart-subtitle">Ticket Trend — {dateRange.label}</div>
+        <div className="dash-card-header"><SectionHeader number="4" title="Ticket Trends" /></div>
+        <div className="dash-chart-subtitle">Created vs Resolved — {dateRange.label}</div>
         <div className="dash-trend-chart">
-          <div className="dash-chart-wrap" style={{ position: 'relative' }}>
-            <svg ref={chartRef} viewBox="0 0 600 300" width="100%" height="100%" style={{ display: 'block' }} preserveAspectRatio="xMidYMid meet" onMouseMove={handleChartMove} onMouseLeave={clearTooltip}>
-              {yLabels.map((val, i) => (
-                <line key={i} x1="48" y1={48 + (yLabels[yLabels.length - 1] - val) * (200 / Math.max(yLabels.length - 1, 1))} x2="555" y2={48 + (yLabels[yLabels.length - 1] - val) * (200 / Math.max(yLabels.length - 1, 1))} stroke="#E5E7EB" strokeWidth="1" />
-              ))}
-              {yLabels.map((val, i) => (
-                <text key={i} x="40" y={52 + (yLabels[yLabels.length - 1] - val) * (200 / Math.max(yLabels.length - 1, 1))} textAnchor="end" fontSize="10" fill="#9CA3AF">{val}</text>
-              ))}
-              {trendChartData.map(s => (
-                <g key={s.key}>
-                  <path d={buildSmoothPath(s.points)} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  {s.points.filter((_, i) => isSingleDay ? i % 4 === 0 || i === 23 : xAxisLabels.some(l => l.index === i)).map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r="3.5" fill={s.color} stroke="#fff" strokeWidth="1.5" />
+          {trendChartData[0]?.points.length === 0 ? (
+            <EmptyState icon="fa-chart-line" title="No trend data" description="Ticket trends will appear once tickets are created in this period." />
+          ) : (
+            <>
+              <div className="dash-chart-wrap">
+                <svg ref={chartRef} viewBox="0 0 600 300" preserveAspectRatio="xMidYMid meet">
+                  {yLabels.map((val, i) => (
+                    <g key={i}>
+                      <line x1="48" y1={48 + (yLabels.length - 1 - i) * (200 / Math.max(yLabels.length - 1, 1))} x2="555" y2={48 + (yLabels.length - 1 - i) * (200 / Math.max(yLabels.length - 1, 1))} stroke="#E5E7EB" strokeWidth="1" />
+                      <text x="40" y={52 + (yLabels.length - 1 - i) * (200 / Math.max(yLabels.length - 1, 1))} textAnchor="end" fontSize="10" fill="#9CA3AF">{val}</text>
+                    </g>
                   ))}
-                </g>
-              ))}
-              {trendChartData[0]?.points.map((p, i) => (
-                <rect key={i} x={p.x - 6} y={p.y - 30} width="12" height="60" fill="transparent"
-                  onMouseEnter={(e) => {
-                    const tl = xAxisLabels.find(l => l.index === i)?.label || ''
-                    const svg = e.currentTarget.closest('svg'); if (!svg) return
-                    const r = svg.getBoundingClientRect()
-                    setTooltip({ screenX: (e.clientX - r.left), screenY: (e.clientY - r.top), timeLabel: tl,
-                      items: trendChartData.map(s => ({ label: TOOLTIP_LABELS[s.key], color: s.color, value: Math.round((248 - s.points[i].y) / 200 * (yLabels[yLabels.length - 1] || 1)) }),
-                    )})
-                  }}
-                  onMouseLeave={() => setTooltip(null)} />
-              ))}
-              {xAxisLabels.map(l => {
-                const np = trendChartData[0]?.points.length || 1
-                const x = 48 + (l.index / Math.max(np - 1, 1)) * (555 - 48)
-                return <text key={l.index} x={x} y="280" textAnchor="middle" fontSize="9" fill="#9CA3AF">{l.label}</text>
-              })}
-            </svg>
-            {tooltip && (
-              <div className="dash-tt" style={{ left: Math.min(tooltip.screenX + 16, 400), top: Math.max(tooltip.screenY - 10, 0) }}>
-                {tooltip.timeLabel && <div className="dash-tt-time">{tooltip.timeLabel}</div>}
-                {tooltip.items.filter(it => it.value > 0).map(it => (
-                  <div key={it.label} className="dash-tt-row"><span className="dash-tt-dot" style={{ background: it.color }} /><span className="dash-tt-label">{it.label}</span><span className="dash-tt-val">{it.value}</span></div>
+                  {trendChartData.map(s => (
+                    <g key={s.key}>
+                      <path d={buildSmoothPath(s.points)} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      {s.points.map((p, i) => (
+                        <circle key={i} cx={p.x} cy={p.y} r="3" fill={s.color} stroke="#fff" strokeWidth="1.5" />
+                      ))}
+                    </g>
+                  ))}
+                  {trendChartData[0]?.points.map((p, i) => (
+                    <rect key={i} x={p.x - 8} y={48} width="16" height={200} fill="transparent"
+                      onMouseEnter={(e) => handleChartHover(e, i)}
+                      onMouseLeave={() => setTooltip(null)} />
+                  ))}
+                  {xAxisLabels.map(l => {
+                    const np = trendChartData[0]?.points.length || 1
+                    const x = 48 + (l.index / Math.max(np - 1, 1)) * (555 - 48)
+                    return <text key={l.index} x={x} y="280" textAnchor="middle" fontSize="9" fill="#9CA3AF">{l.label}</text>
+                  })}
+                </svg>
+                {tooltip && (
+                  <div className="dash-tt" style={{ left: Math.min(tooltip.screenX + 16, 400), top: Math.max(tooltip.screenY - 10, 0) }}>
+                    {tooltip.timeLabel && <div className="dash-tt-time">{tooltip.timeLabel}</div>}
+                    {tooltip.items.filter(it => it.value > 0).map(it => (
+                      <div key={it.label} className="dash-tt-row"><span className="dash-tt-dot" style={{ background: it.color }} /><span className="dash-tt-label">{it.label}</span><span className="dash-tt-val">{it.value}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="dash-trend-legend">
+                {series.map(s => (
+                  <span key={s.key} className="dash-trend-legend-item"><span className="dash-trend-dot" style={{ background: s.color }} /> {s.label}</span>
                 ))}
               </div>
-            )}
-          </div>
-          <div className="dash-trend-legend">
-            <span className="dash-trend-legend-item"><span className="dash-trend-dot" style={{ background: '#2563EB' }} /> Created</span>
-            <span className="dash-trend-legend-item"><span className="dash-trend-dot" style={{ background: '#22C55E' }} /> Resolved</span>
-            <span className="dash-trend-legend-item"><span className="dash-trend-dot" style={{ background: '#EF4444' }} /> SLA Breached</span>
-            <span className="dash-trend-legend-item"><span className="dash-trend-dot" style={{ background: '#F59E0B' }} /> Reopened</span>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
+      {isAdmin && (
       <div className="dash-card dash-card-fill">
-        <div className="dash-card-header"><SectionHeader number="5" title="Agent Resolution Performance" /></div>
-        <div className="dash-agent-table">
-          <div className="dash-agent-thead"><span>Agent</span><span>Assigned</span><span>Resolved</span><span>Open</span><span>SLA %</span><span>Avg Resolution</span></div>
-          {agentStats.length === 0 && <div className="dash-agent-empty">No agent data available</div>}
-          {agentStats.map(a => {
-            const pct = parseFloat(a.slaPct)
-            const badgeClass = pct >= 100 ? 'excellent' : pct >= 90 ? 'good' : pct >= 70 ? 'warning' : 'poor'
-            return (
-              <div key={a.name} className="dash-agent-trow">
-                <span className="dash-agent-name-cell"><span className="dash-agent-avatar">{a.name.charAt(0)}</span>{a.name}</span>
-                <span>{a.assigned}</span><span>{a.resolved}</span><span>{a.open}</span>
-                <span><span className={`dash-sla-badge ${badgeClass}`}>{a.slaPct}%</span></span>
-                <span className="dash-agent-res-cell">{a.avgResolution}</span>
-              </div>
-            )
-          })}
+        <div className="dash-card-header"><SectionHeader number="5" title="Agent Performance" /></div>
+        <div className="dash-agent-scroll">
+          <div className="dash-agent-table">
+            <div className="dash-agent-thead">
+              <span className="dash-ag-col-name">Agent</span>
+              <span className="dash-ag-col-num">Assigned</span>
+              <span className="dash-ag-col-num">Resolved</span>
+              <span className="dash-ag-col-num">Open</span>
+              <span className="dash-ag-col-num">SLA %</span>
+              <span className="dash-ag-col-res">Avg Resolution</span>
+            </div>
+            {agentStats.length === 0 ? (
+              <EmptyState icon="fa-users" title="No agents" description="Agent performance data will appear once users are assigned tickets." />
+            ) : agentStats.map(a => {
+              const pct = a.slaPct
+              const badgeClass = pct >= 95 ? 'excellent' : pct >= 80 ? 'good' : pct >= 60 ? 'warning' : 'poor'
+              return (
+                <div key={a.name} className="dash-agent-trow">
+                  <span className="dash-ag-col-name dash-agent-name-cell">
+                    <span className="dash-agent-avatar">{a.name.charAt(0)}</span>{a.name}
+                  </span>
+                  <span className="dash-ag-col-num">{a.assigned}</span>
+                  <span className="dash-ag-col-num">{a.resolved}</span>
+                  <span className="dash-ag-col-num">{a.open}</span>
+                  <span className="dash-ag-col-num"><span className={`dash-sla-badge ${badgeClass}`}>{pct}%</span></span>
+                  <span className="dash-ag-col-res dash-agent-res-cell">{a.avgResolution}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
-
-      <SectionFilter open={sfOpen} filters={sfFilters} onChange={setSfFilters} onClose={() => setSfOpen(false)} dateLabel={dateRange.label} />
-      {kmFilterOpen && <div className="dash-kmfilter-overlay" onClick={() => setKmFilterOpen(false)} />}
+      )}
     </div>
   )
 }

@@ -10,4 +10,6 @@ public class TicketSlaSummary
     public string? AssignedToName { get; set; }
     public DateTime? SlaDeadline { get; set; }
     public double Percentage { get; set; }
+    public string? SlaStatus { get; set; }
+    public string? TimeRemaining { get; set; }
 }

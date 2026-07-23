@@ -20,12 +20,22 @@ export function getStatusMeta(s) {
 }
 
 export function slaDot(sla) {
+  if (!sla) return 'none'
   if (sla.startsWith('Overdue')) return 'critical'
-  const m = sla.match(/(\d+)h/)
-  if (m) {
-    const h = parseInt(m[1])
-    if (h <= 1) return 'warn'
+  const dm = sla.match(/(\d+)d/)
+  const hm = sla.match(/(\d+)h/)
+  const mm = sla.match(/(\d+)m/)
+  if (dm) {
+    const d = parseInt(dm[1])
+    if (d <= 1 && hm && parseInt(hm[1]) <= 4) return 'warn'
+    return 'ok'
   }
+  if (hm) {
+    const h = parseInt(hm[1])
+    if (h <= 2) return 'warn'
+    return 'ok'
+  }
+  if (mm) return 'warn'
   return 'ok'
 }
 

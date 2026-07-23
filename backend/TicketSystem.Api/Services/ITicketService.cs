@@ -13,7 +13,7 @@ public interface ITicketService
     Task AssignAsync(int ticketId, AssignTicketRequest request, int userId);
     Task UpdateStatusAsync(int ticketId, UpdateTicketStatusRequest request, int userId);
     Task<TicketStatsResponse> GetStatsAsync(TicketStatsQueryParams query);
-    Task<List<TicketSlaSummary>> GetSlaSummaryAsync();
+    Task<List<TicketSlaSummary>> GetSlaSummaryAsync(int? userId = null);
     Task BulkAssignAsync(BulkAssignRequest request);
     Task<BulkResponse> BulkUpdateStatusAsync(BulkStatusRequest request);
     Task ReopenAsync(int ticketId, int userId);

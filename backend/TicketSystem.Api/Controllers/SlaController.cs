@@ -19,6 +19,7 @@ public class SlaController : ControllerBase
         _logger = logger;
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("settings")]
     public async Task<IActionResult> GetSettings()
     {
@@ -34,6 +35,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("settings")]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateSlaSettingsRequest request)
     {
@@ -49,6 +51,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("holidays")]
     public async Task<IActionResult> GetHolidays()
     {
@@ -64,6 +67,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("holidays")]
     public async Task<IActionResult> CreateHoliday([FromBody] CreateHolidayRequest request)
     {
@@ -79,6 +83,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("holidays/{id:int}")]
     public async Task<IActionResult> UpdateHoliday(int id, [FromBody] CreateHolidayRequest request)
     {
@@ -98,6 +103,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("holidays/{id:int}")]
     public async Task<IActionResult> DeleteHoliday(int id)
     {
@@ -117,6 +123,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("weekly-rules")]
     public async Task<IActionResult> GetWeeklyRules()
     {
@@ -132,6 +139,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("weekly-rules")]
     public async Task<IActionResult> CreateWeeklyRule([FromBody] CreateWeeklyHolidayRuleRequest request)
     {
@@ -147,6 +155,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("weekly-rules/{id:int}")]
     public async Task<IActionResult> DeleteWeeklyRule(int id)
     {
@@ -166,6 +175,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("policies")]
     public async Task<IActionResult> GetPolicies()
     {
@@ -181,6 +191,7 @@ public class SlaController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("policies/{id:int}")]
     public async Task<IActionResult> UpdatePolicy(int id, [FromBody] UpdateSlaPolicyRequest request)
     {

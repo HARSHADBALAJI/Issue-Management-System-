@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-export default function TopNav({ notifications = [], onClearNotification, onLogout, user }) {
+export default function TopNav({ notifications = [], unreadCount = 0, onClearNotification, onLogout, user }) {
   const [open, setOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const ref = useRef(null)
@@ -21,9 +21,9 @@ export default function TopNav({ notifications = [], onClearNotification, onLogo
     <header className="topnav">
       <div className="topnav-right">
         <div ref={notifRef} style={{ position: 'relative' }}>
-          <button className="icon-btn" onClick={() => setNotifOpen(!notifOpen)}>
+          <button className="icon-btn" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`} onClick={() => setNotifOpen(!notifOpen)}>
             <i className="fas fa-bell" />
-            {notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
+            {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
           </button>
           {notifOpen && (
             <div className="dropdown-menu show" style={{ position: 'absolute', right: 0, top: '100%', width: 320, maxHeight: 360, overflowY: 'auto', marginTop: 8 }}>
@@ -31,7 +31,7 @@ export default function TopNav({ notifications = [], onClearNotification, onLogo
                 <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '.85rem' }}>No notifications</div>
               ) : (
                 notifications.map((n, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: '.85rem' }}>
+                  <div key={n.id || i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: '.85rem', opacity: n.isRead ? 0.6 : 1 }}>
                     <i className="fas fa-info-circle" style={{ color: 'var(--primary)', marginTop: 2, flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, color: 'var(--text)' }}>{n.title}</div>

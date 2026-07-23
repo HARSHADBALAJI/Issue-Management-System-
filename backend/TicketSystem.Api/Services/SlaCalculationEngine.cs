@@ -138,6 +138,52 @@ public class SlaCalculationEngine
         return Math.Max(0, totalHours);
     }
 
+    public async Task<double> GetOverdueWorkingHoursAsync(DateTime deadline, DateTime now)
+    {
+        if (now <= deadline) return 0;
+
+        var settings = await GetSettingsAsync();
+        var workStart = settings.WorkStartTime;
+        var workEnd = settings.WorkEndTime;
+
+        double totalHours = 0;
+        var current = deadline;
+
+        if (!await IsWorkingDayAsync(current))
+        {
+            current = await GetNextWorkingDayStartAsync(current, workStart);
+        }
+        else
+        {
+            var timeOfDay = current.TimeOfDay;
+            if (timeOfDay < workStart)
+                current = current.Date + workStart;
+            else if (timeOfDay >= workEnd)
+                current = await GetNextWorkingDayStartAsync(current, workStart);
+        }
+
+        while (current < now)
+        {
+            if (!await IsWorkingDayAsync(current))
+            {
+                current = await GetNextWorkingDayStartAsync(current, workStart);
+                continue;
+            }
+
+            var dayEnd = current.Date + workEnd;
+            var dayLimit = now < dayEnd ? now : dayEnd;
+
+            if (current < dayLimit)
+            {
+                totalHours += (dayLimit - current).TotalHours;
+            }
+
+            current = await GetNextWorkingDayStartAsync(current, workStart);
+        }
+
+        return totalHours;
+    }
+
     public async Task<bool> IsWorkingDayAsync(DateTime date)
     {
         var isWeeklyHoliday = await IsWeeklyHolidayAsync(date);

@@ -18,7 +18,7 @@ public class TicketSlaConfiguration : IEntityTypeConfiguration<TicketSla>
         builder.Property(x => x.CreatedAt).IsRequired();
 
         builder.HasOne(x => x.Ticket)
-            .WithMany()
+            .WithMany(t => t.TicketSlas)
             .HasForeignKey(x => x.TicketId)
             .OnDelete(DeleteBehavior.Restrict);
 

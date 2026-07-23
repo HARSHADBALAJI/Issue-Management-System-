@@ -19,6 +19,9 @@ public class TicketListResponse
     public DateTime? LastMessageAt { get; set; }
     public DateTime? SlaDeadline { get; set; }
     public bool IsSlaBreached { get; set; }
+    public string SlaStatus { get; set; } = string.Empty;
+    public int SlaRemainingPercent { get; set; }
+    public string SlaRemainingTime { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

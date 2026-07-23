@@ -189,6 +189,26 @@ public class TicketService : ITicketService
         // Resume SLA on user reply
         await _slaService.ResumeSlaAsync(ticketId);
 
+        // Auto-transition from Waiting to In Progress when a reply is added
+        if (ticket.StatusId == 2) // Waiting
+        {
+            ticket.StatusId = 1; // In Progress
+            ticket.UpdatedAt = DateTime.UtcNow;
+            await _ticketRepo.UpdateAsync(ticket);
+            
+            // Add status history
+            var history = new TicketStatusHistory
+            {
+                TicketId = ticketId,
+                FromStatusId = 2,
+                ToStatusId = 1,
+                ChangedByUserId = userId,
+                Remarks = "Auto-transitioned from Waiting to In Progress on new reply",
+                CreatedAt = DateTime.UtcNow
+            };
+            await _ticketRepo.AddStatusHistoryAsync(history);
+        }
+
         if (!request.IsInternal && ticket.AssignedToUserId.HasValue)
         {
             var fullTicket = await _ticketRepo.GetDetailAsync(ticketId);
@@ -406,16 +426,10 @@ public class TicketService : ITicketService
                     ticketId,
                     "ticket_assigned",
                     $"Ticket {ticket.TicketNumber} assigned to you",
-                    null);
+                    $"Subject: {ticket.Subject}\nRequester: {requester.FullName}");
 
                 // Email to new SPOC
-                var subject = previousSpocId.HasValue
-                    ? $"Ticket Reassigned | #{ticket.TicketNumber}"
-                    : $"Ticket Assigned | #{ticket.TicketNumber}";
-                var body = previousSpocId.HasValue
-                    ? $"Ticket {ticket.TicketNumber} has been reassigned from {previousSpocName} to you.\n\nSubject: {ticket.Subject}\nRequester: {requester.FullName}"
-                    : $"Ticket {ticket.TicketNumber} has been assigned to you.\n\nSubject: {ticket.Subject}\nRequester: {requester.FullName}";
-                await _emailService.SendReplyAsync(user.Email, subject, body);
+                await _emailService.SendAssignedToSpocEmailAsync(ticket, user);
 
                 // Notify previous SPOC if reassigned
                 if (previousSpocId.HasValue)
@@ -502,6 +516,8 @@ public class TicketService : ITicketService
                 await _slaService.PauseSlaAsync(ticketId);
             else if (request.StatusId == 3)
                 await _slaService.CompleteSlaAsync(ticketId);
+            else if (request.StatusId == 1)
+                await _slaService.ResumeSlaAsync(ticketId);
 
             var requester = await _requesterRepo.GetByIdAsync(ticket.RequesterId);
             var spocUser = ticket.AssignedToUserId.HasValue
@@ -662,8 +678,8 @@ public class TicketService : ITicketService
     public async Task<TicketStatsResponse> GetStatsAsync(TicketStatsQueryParams query)
         => await _ticketRepo.GetStatsAsync(query);
 
-    public async Task<List<TicketSlaSummary>> GetSlaSummaryAsync()
-        => await _ticketRepo.GetSlaSummaryAsync();
+    public async Task<List<TicketSlaSummary>> GetSlaSummaryAsync(int? userId = null)
+        => await _ticketRepo.GetSlaSummaryAsync(userId);
 
     public async Task BulkAssignAsync(BulkAssignRequest request)
         => await _ticketRepo.BulkAssignAsync(request.TicketIds, request.AssignedToUserId);

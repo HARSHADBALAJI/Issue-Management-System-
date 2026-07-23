@@ -15,6 +15,7 @@ public interface IEmailService
     Task SendReopenedEmailAsync(Ticket ticket, Requester requester, User? spoc);
     Task SendAutoCloseEmailAsync(Ticket ticket, Requester requester);
     Task SendStatusChangeEmailAsync(Ticket ticket, string fromStatus, string toStatus);
+    Task SendAssignedToSpocEmailAsync(Ticket ticket, User spoc);
     Task SendMessageNotificationAsync(Ticket ticket, TicketMessage message, string recipientEmail, string? senderName = null);
     Task<(bool success, string? error)> SendReplyAsync(string toEmail, string subject, string body, string? inReplyTo = null, string? references = null);
 }

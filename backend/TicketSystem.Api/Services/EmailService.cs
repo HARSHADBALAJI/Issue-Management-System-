@@ -10,16 +10,20 @@ public class EmailService : IEmailService
     private readonly ILogger<EmailService> _logger;
     private readonly TicketSystemDbContext _context;
     private readonly IEmailOutboxService _outbox;
+    private readonly ITrackingService _trackingService;
     private readonly string _systemEmail;
+    private readonly string _trackingBaseUrl;
     private readonly string _templatePath;
     private readonly Dictionary<string, string> _templateCache = new();
 
-    public EmailService(IConfiguration config, ILogger<EmailService> logger, TicketSystemDbContext context, IEmailOutboxService outbox)
+    public EmailService(IConfiguration config, ILogger<EmailService> logger, TicketSystemDbContext context, IEmailOutboxService outbox, ITrackingService trackingService)
     {
         _logger = logger;
         _context = context;
         _outbox = outbox;
+        _trackingService = trackingService;
         _systemEmail = Environment.GetEnvironmentVariable("SYSTEM_USER_EMAIL") ?? config["Email:SystemEmail"] ?? "noreply@ticketingsystem.com";
+        _trackingBaseUrl = Environment.GetEnvironmentVariable("TRACKING_BASE_URL") ?? "http://localhost:5001";
 
         _templatePath = FindTemplatePath();
         _logger.LogInformation("Email template path resolved to: {Path}", _templatePath);
@@ -102,6 +106,9 @@ public class EmailService : IEmailService
     public async Task SendTicketCreatedEmailAsync(Ticket ticket, Requester requester, string? spocEmail = null)
     {
         var appName = await GetApplicationNameAsync(ticket);
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
+
         var template = LoadTemplate("TicketCreated");
         if (template != null)
         {
@@ -112,14 +119,16 @@ public class EmailService : IEmailService
                 ["TicketId"] = ticket.TicketNumber ?? ticket.Id.ToString(),
                 ["Subject"] = ticket.Subject ?? "",
                 ["ApplicationName"] = appName,
-                ["CreatedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                ["CreatedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber);
             await SaveOutgoingEmailAsync(null, requester.Id, subject, requester.Email, _systemEmail, "Sent", ticket.Id, msgId);
         }
         else
         {
-            var fallbackBody = $"Dear {requester.FullName},\n\nYour ticket has been created successfully.\n\nTicket Number: {ticket.TicketNumber}\nSubject: {ticket.Subject}\n\nThank you,\nTicket Support Team";
+            var fallbackBody = $"Dear {requester.FullName},\n\nYour ticket has been created successfully.\n\nTicket Number: {ticket.TicketNumber}\nSubject: {ticket.Subject}\n\nTrack your ticket: {trackingUrl}\n\nThank you,\nTicket Support Team";
             var msgId = await SendEmailAsync(requester.Email, fallbackBody, fallbackBody, ticket.TicketNumber);
             await SaveOutgoingEmailAsync(null, requester.Id, fallbackBody, requester.Email, _systemEmail, "Sent", ticket.Id, msgId);
         }
@@ -137,14 +146,16 @@ public class EmailService : IEmailService
                     ["ApplicationName"] = appName,
                     ["Subject"] = ticket.Subject ?? "",
                     ["RaisedBy"] = requester.FullName,
-                    ["CreatedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                    ["CreatedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                    ["TrackingUrl"] = trackingUrl,
+                    ["TrackingButton"] = trackingButton
                 });
                 var spocMsgId = await SendEmailAsync(spocEmail, spocSubject, spocBody, ticket.TicketNumber);
                 await SaveOutgoingEmailAsync(null, requester.Id, spocSubject, spocEmail, _systemEmail, "Sent", ticket.Id, spocMsgId);
             }
             else
             {
-                var fallbackBody = $"Dear SPOC,\n\nA new ticket has been assigned to you.\n\nTicket Number: {ticket.TicketNumber}\nSubject: {ticket.Subject}\nRequester: {requester.FullName}\n\nThank you,\nTicket System";
+                var fallbackBody = $"Dear SPOC,\n\nA new ticket has been assigned to you.\n\nTicket Number: {ticket.TicketNumber}\nSubject: {ticket.Subject}\nRequester: {requester.FullName}\n\nTrack ticket: {trackingUrl}\n\nThank you,\nTicket System";
                 var spocMsgId = await SendEmailAsync(spocEmail, fallbackBody, fallbackBody, ticket.TicketNumber);
                 await SaveOutgoingEmailAsync(null, requester.Id, fallbackBody, spocEmail, _systemEmail, "Sent", ticket.Id, spocMsgId);
             }
@@ -153,6 +164,8 @@ public class EmailService : IEmailService
 
     public async Task SendAssignedEmailAsync(Ticket ticket, Requester requester, User spoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var subject = $"Ticket Assigned | #{ticket.TicketNumber}";
         var title = $"Dear {requester.FullName},";
         var text = $@"<p style=""margin:0 0 16px 0;color:#333333;"">Your ticket has been assigned to a support representative.</p>
@@ -162,6 +175,7 @@ public class EmailService : IEmailService
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Subject</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Subject}</td></tr>
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Assigned To</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{spoc.FullName}</td></tr>
 </table></td></tr></table>
+{trackingButton}
 <p style=""margin:0 0 12px 0;color:#333333;"">We will look into this and get back to you at the earliest.</p>
 <p style=""margin:0 0 4px 0;color:#333333;"">Kind regards,</p>
 <p style=""margin:0;color:#333333;font-weight:600;"">Issue Management System<br />Larsen &amp; Toubro Limited</p>";
@@ -173,6 +187,8 @@ public class EmailService : IEmailService
 
     public async Task SendReassignedEmailAsync(Ticket ticket, Requester requester, User newSpoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var subject = $"Ticket Reassigned | #{ticket.TicketNumber}";
         var title = $"Dear {requester.FullName},";
         var text = $@"<p style=""margin:0 0 16px 0;color:#333333;"">Your ticket has been reassigned to a new support representative.</p>
@@ -182,6 +198,7 @@ public class EmailService : IEmailService
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Subject</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Subject}</td></tr>
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">New Assigned To</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{newSpoc.FullName}</td></tr>
 </table></td></tr></table>
+{trackingButton}
 <p style=""margin:0 0 12px 0;color:#333333;"">Please continue to monitor your ticket for updates.</p>
 <p style=""margin:0 0 4px 0;color:#333333;"">Kind regards,</p>
 <p style=""margin:0;color:#333333;font-weight:600;"">Issue Management System<br />Larsen &amp; Toubro Limited</p>";
@@ -191,8 +208,32 @@ public class EmailService : IEmailService
         await SaveOutgoingEmailAsync(newSpoc.Id, requester.Id, subject, requester.Email, _systemEmail, "Sent", ticket.Id, msgId, inReplyTo, references);
     }
 
+    public async Task SendAssignedToSpocEmailAsync(Ticket ticket, User spoc)
+    {
+        var appName = await GetApplicationNameAsync(ticket);
+        var subject = $"New Ticket Assigned to You | #{ticket.TicketNumber}";
+        var title = $"Dear {spoc.FullName},";
+        var text = $@"<p style=""margin:0 0 16px 0;color:#333333;"">A new support ticket has been assigned to you.</p>
+<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" style=""width:100%;border:1px solid #E0E0E0;border-radius:8px;margin-bottom:24px;""><tr><td style=""padding:20px 24px;"">
+<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"">
+<tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;"">Ticket ID</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#005BAC;font-weight:600;vertical-align:top;"">#{ticket.TicketNumber}</td></tr>
+<tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Subject</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Subject}</td></tr>
+<tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Application</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{appName}</td></tr>
+<tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Priority</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;text-transform:capitalize;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Priority}</td></tr>
+<tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Description</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Description}</td></tr>
+</table></td></tr></table>
+<p style=""margin:0 0 12px 0;color:#333333;"">Please review and take appropriate action.</p>
+<p style=""margin:0 0 4px 0;color:#333333;"">Kind regards,</p>
+<p style=""margin:0;color:#333333;font-weight:600;"">Issue Management System<br />Larsen &amp; Toubro Limited</p>";
+        var body = WrapPlainText(title, text);
+        var msgId = await SendEmailAsync(spoc.Email, subject, body, ticket.TicketNumber);
+        await SaveOutgoingEmailAsync(spoc.Id, null, subject, spoc.Email, _systemEmail, "Sent", ticket.Id, msgId);
+    }
+
     public async Task SendSpocReplyEmailAsync(Ticket ticket, TicketMessage message, Requester requester, User spoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketConversation");
         if (template != null)
         {
@@ -208,7 +249,9 @@ public class EmailService : IEmailService
                 ["SenderName"] = spoc.FullName,
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
                 ["Message"] = message.Content ?? "",
-                ["ImageAttachments"] = imagesHtml
+                ["ImageAttachments"] = imagesHtml,
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
@@ -224,6 +267,8 @@ public class EmailService : IEmailService
 
     public async Task SendRequesterReplyEmailAsync(Ticket ticket, TicketMessage message, Requester requester, User spoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, spoc.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketConversation");
         if (template != null)
         {
@@ -239,7 +284,9 @@ public class EmailService : IEmailService
                 ["SenderName"] = requester.FullName,
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
                 ["Message"] = message.Content ?? "",
-                ["ImageAttachments"] = imagesHtml
+                ["ImageAttachments"] = imagesHtml,
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(spoc.Email, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
@@ -255,6 +302,8 @@ public class EmailService : IEmailService
 
     public async Task SendWaitingEmailAsync(Ticket ticket, Requester requester, User? spoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var subject = $"Ticket Waiting for Information | #{ticket.TicketNumber}";
         var title = $"Dear {requester.FullName},";
         var text = $@"<p style=""margin:0 0 16px 0;color:#333333;"">Your ticket is now waiting for additional information from you.</p>
@@ -263,6 +312,7 @@ public class EmailService : IEmailService
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;"">Ticket ID</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#005BAC;font-weight:600;vertical-align:top;"">#{ticket.TicketNumber}</td></tr>
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Subject</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{ticket.Subject}</td></tr>
 </table></td></tr></table>
+{trackingButton}
 <p style=""margin:0 0 12px 0;color:#333333;"">Please provide the required information at your earliest convenience so we can continue working on your request.</p>
 <p style=""margin:0 0 4px 0;color:#333333;"">Kind regards,</p>
 <p style=""margin:0;color:#333333;font-weight:600;"">Issue Management System<br />Larsen &amp; Toubro Limited</p>";
@@ -274,6 +324,8 @@ public class EmailService : IEmailService
 
     public async Task SendResolvedEmailAsync(Ticket ticket, Requester requester)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketResolved");
         if (template != null)
         {
@@ -286,7 +338,9 @@ public class EmailService : IEmailService
                 ["ApplicationName"] = appName,
                 ["Subject"] = ticket.Subject ?? "",
                 ["ResolvedBy"] = ticket.AssignedToUser?.FullName ?? "Support Team",
-                ["ResolvedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                ["ResolvedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references);
@@ -294,7 +348,7 @@ public class EmailService : IEmailService
         }
         else
         {
-            var fallbackBody = $"Dear {requester.FullName},\n\nYour ticket has been marked as resolved.\n\nTicket ID: {ticket.TicketNumber}\nSubject: {ticket.Subject}\n\nThank you,\nTicket Support Team";
+            var fallbackBody = $"Dear {requester.FullName},\n\nYour ticket has been marked as resolved.\n\nTicket ID: {ticket.TicketNumber}\nSubject: {ticket.Subject}\n\nTrack: {trackingUrl}\n\nThank you,\nTicket Support Team";
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, fallbackBody, fallbackBody, ticket.TicketNumber, inReplyTo, references);
             await SaveOutgoingEmailAsync(null, requester.Id, fallbackBody, requester.Email, _systemEmail, "Sent", ticket.Id, msgId, inReplyTo, references);
@@ -303,6 +357,8 @@ public class EmailService : IEmailService
 
     public async Task SendClosedEmailAsync(Ticket ticket, Requester requester)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketClosed");
         if (template != null)
         {
@@ -314,7 +370,9 @@ public class EmailService : IEmailService
                 ["TicketId"] = ticket.TicketNumber ?? ticket.Id.ToString(),
                 ["ApplicationName"] = appName,
                 ["Subject"] = ticket.Subject ?? "",
-                ["ClosedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                ["ClosedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references);
@@ -331,6 +389,8 @@ public class EmailService : IEmailService
 
     public async Task SendReopenedEmailAsync(Ticket ticket, Requester requester, User? spoc)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketReopened");
         if (template != null)
         {
@@ -342,7 +402,9 @@ public class EmailService : IEmailService
                 ["TicketId"] = ticket.TicketNumber ?? ticket.Id.ToString(),
                 ["ApplicationName"] = appName,
                 ["Subject"] = ticket.Subject ?? "",
-                ["ReopenedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                ["ReopenedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references);
@@ -359,6 +421,8 @@ public class EmailService : IEmailService
 
     public async Task SendAutoCloseEmailAsync(Ticket ticket, Requester requester)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketClosed");
         if (template != null)
         {
@@ -370,7 +434,9 @@ public class EmailService : IEmailService
                 ["TicketId"] = ticket.TicketNumber ?? ticket.Id.ToString(),
                 ["ApplicationName"] = appName,
                 ["Subject"] = ticket.Subject ?? "",
-                ["ClosedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm")
+                ["ClosedDate"] = DateTime.Now.ToString("dd-MM-yyyy HH:mm"),
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(requester.Email, subject, body, ticket.TicketNumber, inReplyTo, references);
@@ -389,6 +455,8 @@ public class EmailService : IEmailService
     {
         if (ticket.Requester == null) return;
 
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, ticket.Requester.Email);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var subject = $"Status Updated | #{ticket.TicketNumber}";
         var title = $"Dear {ticket.Requester.FullName},";
         var text = $@"<p style=""margin:0 0 16px 0;color:#333333;"">Your ticket status has been updated.</p>
@@ -399,6 +467,7 @@ public class EmailService : IEmailService
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">Previous Status</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{fromStatus}</td></tr>
 <tr><td style=""padding:6px 0;width:40%;font-size:13px;color:#666666;vertical-align:top;border-top:1px solid #F0F0F0;"">New Status</td><td style=""padding:6px 0;width:60%;font-size:14px;color:#333333;vertical-align:top;border-top:1px solid #F0F0F0;"">{toStatus}</td></tr>
 </table></td></tr></table>
+{trackingButton}
 <p style=""margin:0 0 4px 0;color:#333333;"">Kind regards,</p>
 <p style=""margin:0;color:#333333;font-weight:600;"">Issue Management System<br />Larsen &amp; Toubro Limited</p>";
         var body = WrapPlainText(title, text);
@@ -409,6 +478,8 @@ public class EmailService : IEmailService
 
     public async Task SendMessageNotificationAsync(Ticket ticket, TicketMessage message, string recipientEmail, string? senderName = null)
     {
+        var trackingUrl = await GenerateTrackingUrlAsync(ticket.Id, recipientEmail);
+        var trackingButton = BuildTrackingButtonHtml(trackingUrl);
         var template = LoadTemplate("TicketConversation");
         if (template != null)
         {
@@ -424,7 +495,9 @@ public class EmailService : IEmailService
                 ["SenderName"] = senderName ?? "System",
                 ["MessageDate"] = (message.CreatedAt).ToString("dd-MM-yyyy HH:mm"),
                 ["Message"] = message.Content ?? "",
-                ["ImageAttachments"] = imagesHtml
+                ["ImageAttachments"] = imagesHtml,
+                ["TrackingUrl"] = trackingUrl,
+                ["TrackingButton"] = trackingButton
             });
             var (inReplyTo, references) = await GetThreadingInfoAsync(ticket.Id);
             var msgId = await SendEmailAsync(recipientEmail, subject, body, ticket.TicketNumber, inReplyTo, references, ticketMessageId: message.Id, inlineAttachments: inlineAttachments.Count > 0 ? inlineAttachments : null);
@@ -486,6 +559,26 @@ public class EmailService : IEmailService
     {
         var emailParts = _systemEmail.Split('@');
         return emailParts.Length > 1 ? emailParts[^1] : "ticketingsystem.com";
+    }
+
+    private async Task<string> GenerateTrackingUrlAsync(int ticketId, string recipientEmail)
+    {
+        try
+        {
+            var token = await _trackingService.GenerateTokenAsync(ticketId, recipientEmail);
+            return $"{_trackingBaseUrl}/track/{ticketId}?token={token}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate tracking URL for ticket {TicketId}", ticketId);
+            return "";
+        }
+    }
+
+    private string BuildTrackingButtonHtml(string trackingUrl)
+    {
+        if (string.IsNullOrWhiteSpace(trackingUrl)) return "";
+        return $@"<table role=""presentation"" cellpadding=""0"" cellspacing=""0"" style=""margin:20px 0;""><tr><td><a href=""{trackingUrl}"" target=""_blank"" style=""display:inline-block;background-color:#005BAC;color:#FFFFFF;font-size:14px;font-weight:600;text-decoration:none;padding:12px 28px;border-radius:6px;font-family:'Segoe UI',Arial,sans-serif;"">View Ticket Details</a></td></tr></table>";
     }
 
     private async Task SaveOutgoingEmailAsync(int? userId, int? requesterId, string subject, string recipientEmail, string senderEmail, string status, int? ticketId = null, string? messageId = null, string? inReplyTo = null, string? references = null)

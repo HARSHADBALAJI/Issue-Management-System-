@@ -14,4 +14,5 @@ public class TicketQueryParams : QueryParams
     public bool? Unassigned { get; set; }
     public string? Priority { get; set; }
     public bool? SlaBreached { get; set; }
+    public int? UserId { get; set; }
 }

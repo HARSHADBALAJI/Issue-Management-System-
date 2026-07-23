@@ -12,7 +12,7 @@ public interface ITicketRepository : IRepository<Ticket>
     Task<TicketListResponse?> GetTicketListResponseAsync(int id);
     Task<int> GetNextSequenceAsync();
     Task<TicketStatsResponse> GetStatsAsync(TicketStatsQueryParams query);
-    Task<List<TicketSlaSummary>> GetSlaSummaryAsync();
+    Task<List<TicketSlaSummary>> GetSlaSummaryAsync(int? userId = null);
     Task BulkAssignAsync(List<int> ticketIds, int assignedToUserId);
     Task BulkUpdateStatusAsync(List<int> ticketIds, int statusId);
     Task<TicketMessage> AddMessageAsync(TicketMessage message);

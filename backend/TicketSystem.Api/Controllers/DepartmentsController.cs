@@ -7,7 +7,7 @@ using TicketSystem.Api.Services;
 
 namespace TicketSystem.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/[controller]")]
 public class DepartmentsController : ControllerBase

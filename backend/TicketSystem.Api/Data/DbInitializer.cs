@@ -39,6 +39,28 @@ public static class DbInitializer
                     NO CYCLE;
         ");
 
+        // Ensure TicketAccessTokens table exists
+        await context.Database.ExecuteSqlRawAsync(@"
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TicketAccessTokens')
+            BEGIN
+                CREATE TABLE [TicketAccessTokens] (
+                    [Id] int IDENTITY(1,1) NOT NULL,
+                    [TicketId] int NOT NULL,
+                    [TokenHash] nvarchar(255) NOT NULL,
+                    [Email] nvarchar(255) NOT NULL,
+                    [IsRevoked] bit NOT NULL DEFAULT 0,
+                    [ExpiresAt] datetime2 NOT NULL,
+                    [CreatedAt] datetime2 NOT NULL DEFAULT GETUTCDATE(),
+                    [LastUsedAt] datetime2 NULL,
+                    [UsageCount] int NOT NULL DEFAULT 0,
+                    CONSTRAINT [PK_TicketAccessTokens] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_TicketAccessTokens_Tickets_TicketId] FOREIGN KEY ([TicketId]) REFERENCES [Tickets] ([Id]) ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_TicketAccessTokens_TokenHash] ON [TicketAccessTokens] ([TokenHash]);
+                CREATE INDEX [IX_TicketAccessTokens_TicketId_Email] ON [TicketAccessTokens] ([TicketId], [Email]);
+            END
+        ");
+
         // ensure default department exists
         if (!await context.Departments.AnyAsync())
         {
@@ -130,6 +152,19 @@ public static class DbInitializer
                 new WeeklyHolidayRule { DayOfWeek = DayOfWeek.Saturday, WeekType = "EverySecondAndFourth", Description = "2nd and 4th Saturday", IsActive = true }
             );
             await context.SaveChangesAsync();
+        }
+
+        // Backfill password hash for any users missing one (seeded via SQL without passwords)
+        var defaultPassword = "Spoc@123";
+        var hash = BCrypt.Net.BCrypt.HashPassword(defaultPassword);
+
+        // Use raw SQL with parameter to handle NULLs (EF's non-nullable string property optimizes away IS NULL check)
+        var count = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Users SET PasswordHash = {hash} WHERE PasswordHash IS NULL OR PasswordHash = ''");
+
+        if (count > 0)
+        {
+            Console.WriteLine($"Backfilled passwords for {count} users (default: {defaultPassword}).");
         }
     }
 }

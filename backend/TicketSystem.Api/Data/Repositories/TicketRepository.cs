@@ -54,7 +54,10 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
             q = q.Where(t => t.RequesterId == query.RequesterId.Value);
 
         if (query.SlaBreached == true)
-            q = q.Where(t => t.SlaDeadline != null && t.SlaDeadline < DateTime.UtcNow);
+            q = q.Where(t => t.TicketSlas.Any(s => s.IsActive && s.Status == SlaStatus.Breached));
+
+        if (query.UserId.HasValue)
+            q = q.Where(t => t.RequesterId == query.UserId.Value || t.AssignedToUserId == query.UserId.Value);
 
         var total = await q.CountAsync();
 
@@ -90,8 +93,34 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
                 AssignedToId = t.AssignedToUserId,
                 AssignedToName = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
                 LastMessageAt = t.Messages.OrderByDescending(m => m.CreatedAt).Select(m => (DateTime?)m.CreatedAt).FirstOrDefault(),
-                SlaDeadline = t.SlaDeadline,
-                IsSlaBreached = t.SlaDeadline != null && t.SlaDeadline < DateTime.UtcNow,
+                SlaDeadline = t.TicketSlas
+                    .Where(s => s.IsActive)
+                    .Select(s => (DateTime?)s.DeadlineAt)
+                    .FirstOrDefault(),
+                IsSlaBreached = t.TicketSlas
+                    .Any(s => s.IsActive && s.Status == SlaStatus.Breached),
+                SlaStatus = t.TicketSlas
+                    .Where(s => s.IsActive)
+                    .Select(s => s.Status.ToString())
+                    .FirstOrDefault() ?? string.Empty,
+                SlaRemainingPercent = t.TicketSlas
+                    .Where(s => s.IsActive)
+                    .Select(s => s.Status == SlaStatus.Completed ? 100 :
+                        s.Status == SlaStatus.Breached ? 0 :
+                        (s.DeadlineAt > DateTime.UtcNow
+                            ? (int)Math.Round(Math.Min((DateTime.UtcNow - s.StartedAt.GetValueOrDefault(s.CreatedAt)).TotalMinutes / (s.DeadlineAt - s.StartedAt.GetValueOrDefault(s.CreatedAt)).TotalMinutes * 100, 100), 0)
+                            : 0))
+                    .FirstOrDefault(),
+                SlaRemainingTime = t.TicketSlas
+                    .Where(s => s.IsActive)
+                    .Select(s => s.Status == SlaStatus.Breached ? "Breached" :
+                        s.Status == SlaStatus.Completed ? "Completed" :
+                        s.DeadlineAt > DateTime.UtcNow
+                            ? ((s.DeadlineAt - DateTime.UtcNow).TotalDays >= 1
+                                ? $"{(int)(s.DeadlineAt - DateTime.UtcNow).TotalDays}d {((s.DeadlineAt - DateTime.UtcNow).Hours)}h"
+                                : $"{(int)(s.DeadlineAt - DateTime.UtcNow).TotalHours}h {((s.DeadlineAt - DateTime.UtcNow).Minutes)}m")
+                            : "Overdue")
+                    .FirstOrDefault() ?? string.Empty,
                 CreatedAt = t.CreatedAt,
                 UpdatedAt = t.UpdatedAt
             })
@@ -260,8 +289,12 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
                 AssignedToId = t.AssignedToUserId,
                 AssignedToName = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
                 LastMessageAt = t.Messages.OrderByDescending(m => m.CreatedAt).Select(m => (DateTime?)m.CreatedAt).FirstOrDefault(),
-                SlaDeadline = t.SlaDeadline,
-                IsSlaBreached = t.SlaDeadline != null && t.SlaDeadline < DateTime.UtcNow,
+                SlaDeadline = t.TicketSlas
+                    .Where(s => s.IsActive)
+                    .Select(s => (DateTime?)s.DeadlineAt)
+                    .FirstOrDefault(),
+                IsSlaBreached = t.TicketSlas
+                    .Any(s => s.IsActive && s.Status == SlaStatus.Breached),
                 CreatedAt = t.CreatedAt,
                 UpdatedAt = t.UpdatedAt
             })
@@ -270,10 +303,19 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
 
     public async Task<int> GetNextSequenceAsync()
     {
-        var raw = await Context.Database
-            .SqlQueryRaw<long>("SELECT NEXT VALUE FOR TicketSequence AS Value")
+        var maxTicketNumber = await Context.Tickets
+            .Where(t => t.TicketNumber.StartsWith("TKT-"))
+            .Select(t => t.TicketNumber)
             .ToListAsync();
-        return (int)raw.FirstOrDefault();
+
+        var maxNum = 0;
+        foreach (var tn in maxTicketNumber)
+        {
+            if (int.TryParse(tn.AsSpan(4), out var num) && num > maxNum)
+                maxNum = num;
+        }
+
+        return maxNum + 1;
     }
 
     public async Task<TicketStatsResponse> GetStatsAsync(TicketStatsQueryParams query)
@@ -288,6 +330,8 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
             q = q.Where(t => t.CreatedAt <= query.EndDate.Value);
         if (query.ApplicationId.HasValue)
             q = q.Where(t => t.ApplicationId == query.ApplicationId.Value);
+        if (query.UserId.HasValue)
+            q = q.Where(t => t.RequesterId == query.UserId.Value || t.AssignedToUserId == query.UserId.Value);
 
         var total = await q.CountAsync();
         var open = await q.CountAsync(t => t.Status.Name == "open");
@@ -296,7 +340,12 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
         var resolved = await q.CountAsync(t => t.Status.Name == "resolved");
         var closed = await q.CountAsync(t => t.Status.Name == "closed");
 
-        var breached = await q.CountAsync(t => t.SlaDeadline != null && t.SlaDeadline < DateTime.UtcNow);
+        var ticketIds = await q.Select(t => t.Id).ToListAsync();
+
+        var breached = ticketIds.Count > 0
+            ? await Context.TicketSlas.AsNoTracking()
+                .CountAsync(ts => ticketIds.Contains(ts.TicketId) && ts.IsActive && ts.Status == SlaStatus.Breached)
+            : 0;
 
         var resolvedTickets = await q.Where(t => t.ResolvedAt != null)
             .Select(t => new { t.ResolvedAt, t.CreatedAt })
@@ -305,7 +354,10 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
             ? resolvedTickets.Average(x => (x.ResolvedAt!.Value - x.CreatedAt).TotalHours)
             : 0;
 
-        var totalWithSla = await q.CountAsync(t => t.SlaDeadline != null);
+        var totalWithSla = ticketIds.Count > 0
+            ? await Context.TicketSlas.AsNoTracking()
+                .CountAsync(ts => ticketIds.Contains(ts.TicketId) && ts.IsActive)
+            : 0;
         var slaCompliance = totalWithSla > 0
             ? Math.Round((double)(totalWithSla - breached) / totalWithSla * 100, 1)
             : 0;
@@ -334,27 +386,71 @@ public class TicketRepository : Repository<Ticket>, ITicketRepository
         };
     }
 
-    public async Task<List<TicketSlaSummary>> GetSlaSummaryAsync()
+    public async Task<List<TicketSlaSummary>> GetSlaSummaryAsync(int? userId = null)
     {
-        return await Context.Tickets.AsNoTracking()
+        var now = DateTime.UtcNow;
+        var tickets = await Context.Tickets.AsNoTracking()
             .Include(t => t.Status)
             .Include(t => t.AssignedToUser)
+            .Include(t => t.TicketSlas)
             .Where(t => t.Status.Name != "closed")
-            .Select(t => new TicketSlaSummary
-            {
-                Id = t.Id,
-                TicketNumber = t.TicketNumber,
-                Subject = t.Subject,
-                StatusName = t.Status.Name,
-                Priority = t.Priority,
-                AssignedToName = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
-                SlaDeadline = t.SlaDeadline,
-                Percentage = t.SlaDeadline != null
-                    ? Math.Round((DateTime.UtcNow - t.CreatedAt).TotalMinutes /
-                        (t.SlaDeadline.Value - t.CreatedAt).TotalMinutes * 100, 1)
-                    : 0
-            })
+            .Where(t => !userId.HasValue || t.RequesterId == userId.Value || t.AssignedToUserId == userId.Value)
+            .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
+
+        return tickets.AsEnumerable()
+            .Select(t =>
+            {
+                var activeSla = t.TicketSlas.FirstOrDefault(s => s.IsActive);
+                var slaDeadline = activeSla?.DeadlineAt ?? t.SlaDeadline;
+                double percentage = 0;
+                if (activeSla != null)
+                {
+                    if (activeSla.Status == SlaStatus.Completed)
+                        percentage = 100;
+                    else if (activeSla.Status == SlaStatus.Breached)
+                        percentage = 100;
+                    else
+                    {
+                        var elapsed = (now - activeSla.StartedAt.GetValueOrDefault(now)).TotalMinutes - activeSla.TotalPausedDuration.TotalMinutes;
+                        var total = (activeSla.DeadlineAt - activeSla.StartedAt.GetValueOrDefault(activeSla.CreatedAt)).TotalMinutes;
+                        percentage = total > 0 ? Math.Round(Math.Min(elapsed / total * 100, 100), 1) : 0;
+                    }
+                }
+                string FormatTime(TimeSpan ts)
+                {
+                    if (ts.TotalDays >= 1) return $"{(int)ts.TotalDays}d {ts.Hours}h";
+                    if (ts.TotalHours >= 1) return $"{(int)ts.TotalHours}h {ts.Minutes}m";
+                    return $"{(int)ts.TotalMinutes}m";
+                }
+
+                string? timeRemaining = null;
+                if (activeSla != null && slaDeadline.HasValue)
+                {
+                    var remaining = activeSla.Status == SlaStatus.Breached
+                        ? TimeSpan.Zero
+                        : slaDeadline.Value - now;
+                    if (remaining.TotalSeconds <= 0)
+                        timeRemaining = "Breached";
+                    else
+                        timeRemaining = FormatTime(remaining);
+                }
+
+                return new TicketSlaSummary
+                {
+                    Id = t.Id,
+                    TicketNumber = t.TicketNumber,
+                    Subject = t.Subject,
+                    StatusName = t.Status.Name,
+                    Priority = t.Priority,
+                    AssignedToName = t.AssignedToUser?.FullName,
+                    SlaDeadline = slaDeadline,
+                    Percentage = percentage,
+                    SlaStatus = activeSla?.Status.ToString() ?? "None",
+                    TimeRemaining = timeRemaining
+                };
+            })
+            .ToList();
     }
 
     public async Task<TicketMessage> AddMessageAsync(TicketMessage message)
